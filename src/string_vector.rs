@@ -34,4 +34,3 @@ py_class!(pub class StringVector |py| {
         Ok(true)
     }
 });
-
