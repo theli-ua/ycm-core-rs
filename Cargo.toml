@@ -1,0 +1,12 @@
+[package]
+name = "ycm_core_rs"
+version = "0.1.0"
+authors = ["Anton Romanov <theli.ua@gmail.com>"]
+edition = "2018"
+
+[lib]
+name = "ycm_core"
+crate-type = ["cdylib"]
+
+[dependencies]
+cpython = { version = "0.6.0", features = ["extension-module"]}
