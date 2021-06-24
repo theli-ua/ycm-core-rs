@@ -89,7 +89,7 @@ pub struct Candidate<'a> {
     word_boundary_chars: Vec<Character>,
     text_is_lowercase: bool,
     case_swapped: Vec<Vec<char>>,
-    text: &'a str,
+    pub text: &'a str,
 }
 
 impl<'a> Candidate<'a> {
@@ -160,7 +160,7 @@ pub struct QueryResult<'a, 'b> {
     first_char_is_same: bool,
     char_match_index_sum: usize,
     num_wb_matches: usize,
-    candidate: &'a Candidate<'a>,
+    pub candidate: &'a Candidate<'a>,
     query: &'b Word<'b>,
 }
 
