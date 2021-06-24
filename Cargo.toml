@@ -6,8 +6,12 @@ edition = "2018"
 
 [lib]
 name = "ycm_core"
-crate-type = ["cdylib"]
+#crate-type = ["cdylib"]
 
 [dependencies]
-cpython = { version = "0.6.0", features = ["extension-module"]}
-partial_sort = { version = "0.1.2" }
+lazy_static = "1.4.0"
+lcs = "0.2.0"
+partial_sort = "0.1.2"
+unicode-linebreak = "0.1.1"
+unicode-normalization = "0.1.19"
+unicode-segmentation = "1.7.1"
