@@ -6,12 +6,14 @@ use unicode_segmentation::UnicodeSegmentation;
 
 use partial_sort::PartialSort;
 
+use smallvec::{SmallVec, ToSmallVec};
+
 #[derive(Debug, Clone, Eq)]
 pub struct Character {
-    normal: Vec<char>,
-    base: Vec<char>,
-    folded_case: Vec<char>,
-    swapped_case: Vec<char>,
+    normal: SmallVec<[char; 2]>,
+    base: SmallVec<[char; 2]>,
+    folded_case: SmallVec<[char; 2]>,
+    swapped_case: SmallVec<[char; 2]>,
     is_base: bool,
     is_uppercase: bool,
     is_punctuation: bool,
@@ -21,10 +23,10 @@ pub struct Character {
 impl Character {
     pub fn new(character: &str) -> Self {
         let mut is_base = false;
-        let mut normal = Vec::default();
-        let mut folded_case = Vec::default();
-        let mut swapped_case = Vec::default();
-        let mut base = Vec::default();
+        let mut normal = SmallVec::<[char; 2]>::new();
+        let mut folded_case = SmallVec::<[char; 2]>::new();
+        let mut swapped_case = SmallVec::<[char; 2]>::new();
+        let mut base = SmallVec::<[char; 2]>::new();
         let mut is_uppercase = false;
         let mut is_punctuation = false;
         let mut is_letter = false;
@@ -38,20 +40,26 @@ impl Character {
                     is_base = false;
                 }
                 _ => {
-                    base.append(&mut c.to_lowercase().collect::<Vec<_>>());
+                    for cc in c.to_lowercase() {
+                        base.push(cc);
+                    }
                 }
             }
             is_uppercase |= c.is_uppercase();
             is_punctuation |= c.is_ascii_punctuation() | c.is_whitespace();
             is_letter |= c.is_alphabetic();
-            folded_case.append(&mut c.to_lowercase().collect::<Vec<_>>());
-            swapped_case.append(
-                &mut (if c.is_lowercase() {
-                    c.to_uppercase().collect::<Vec<_>>()
-                } else {
-                    c.to_lowercase().collect::<Vec<_>>()
-                }),
-            );
+            for cc in c.to_lowercase() {
+                folded_case.push(cc);
+            }
+            if c.is_lowercase() {
+                for cc in c.to_uppercase() {
+                    swapped_case.push(cc);
+                }
+            } else {
+                for cc in c.to_lowercase() {
+                    swapped_case.push(cc);
+                }
+            }
         }
 
         Self {
@@ -88,7 +96,7 @@ pub struct Candidate<'a> {
     characters: Vec<Character>,
     word_boundary_chars: Vec<Character>,
     text_is_lowercase: bool,
-    case_swapped: Vec<Vec<char>>,
+    case_swapped: Vec<char>,
     pub text: &'a str,
 }
 
@@ -113,7 +121,11 @@ impl<'a> Candidate<'a> {
             word_boundary_chars.insert(0, characters[0].clone());
         }
         let text_is_lowercase = characters.iter().all(|c| !c.is_uppercase);
-        let case_swapped = characters.iter().map(|c| c.swapped_case.clone()).collect();
+        let case_swapped = characters
+            .iter()
+            .map(|c| c.swapped_case.clone())
+            .flatten()
+            .collect();
 
         Self {
             characters,
