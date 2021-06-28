@@ -216,4 +216,21 @@ mod tests {
             .collect::<Vec<_>>();
         assert_eq!(expected_candidates, result_strings);
     }
+
+    #[test]
+    fn test_sort() {
+        let candidates =
+            std::array::IntoIter::new(["Bären", "Käfer", "Küssen", "Ähnlich", "Äpfel"])
+                .map(Candidate::new)
+                .collect::<Vec<_>>();
+        let q = Word::new("");
+
+        let results = filter_and_sort_candidates(&candidates, &q, usize::MAX);
+        let expected_candidates = vec!["Ähnlich", "Äpfel", "Bären", "Käfer", "Küssen"];
+        let result_strings = results
+            .into_iter()
+            .map(|r| r.candidate.text)
+            .collect::<Vec<_>>();
+        assert_eq!(expected_candidates, result_strings);
+    }
 }
