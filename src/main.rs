@@ -6,6 +6,8 @@ use ring::hmac;
 
 use structopt::StructOpt;
 
+use warp::hyper::Method;
+use warp::path::FullPath;
 use warp::reply::Response;
 use warp::{
     hyper::{body::Bytes, StatusCode},
@@ -15,7 +17,7 @@ use warp::{
 const HMAC_HEADER: &'static str = "x-ycm-hmac";
 
 #[derive(Debug, StructOpt)]
-#[structopt(name = "ycmd", about = "YCMD-rs")]
+#[structopt(name = "ycmd", about = "YCMD-rs", rename_all = "snake-case")]
 struct Opt {
     #[structopt(long, parse(from_os_str))]
     options_file: PathBuf,
@@ -43,6 +45,10 @@ struct Opt {
 
     #[structopt(long)]
     keep_logfiles: bool,
+
+    // positional to capture stuff
+    #[structopt(name = "FOO")]
+    _foo: String,
 }
 
 #[derive(serde::Deserialize)]
@@ -116,28 +122,49 @@ async fn main() {
     let hmac_secret_clone = hmac_secret.clone();
     let hmac_filter = warp::header::<String>(HMAC_HEADER)
         .and(warp::body::bytes())
-        .and_then(move |hmac_value, body: Bytes| {
-            let hmac_secret = hmac_secret_clone.clone();
-            async move {
-                let hmac_value = base64::decode(&hmac_value).unwrap();
-                if hmac::verify(&hmac_secret, body.as_ref(), hmac_value.as_ref()).is_err() {
-                    Err(warp::reject::not_found())
-                } else {
-                    Ok(())
-                }
-            }
-        });
+        .and(warp::path::full())
+        .and(warp::method())
+        .and_then(
+            move |hmac_value, body: Bytes, path: FullPath, method: Method| {
+                let hmac_secret = hmac_secret_clone.clone();
+                async move {
+                    let hmac_value = base64::decode(&hmac_value).unwrap();
+                    let body_hmac = hmac::sign(&hmac_secret, &body);
+                    let method_hmac = hmac::sign(&hmac_secret, &method.as_str().as_bytes());
+                    let path_hmac = hmac::sign(&hmac_secret, &path.as_str().as_bytes());
 
+                    let mut ctx = hmac::Context::with_key(&hmac_secret);
+                    ctx.update(method_hmac.as_ref());
+                    ctx.update(path_hmac.as_ref());
+                    ctx.update(body_hmac.as_ref());
+                    let expected = ctx.sign();
+
+                    if !expected.as_ref().eq(&hmac_value) {
+                        println!("non matching hmac: {:?}, {:?}", hmac_value, body.as_ref());
+                        Err(warp::reject::not_found())
+                    } else {
+                        Ok(())
+                    }
+                }
+            },
+        );
+
+    println!("starting READY");
     let ready = hmac_filter
         .and(warp::filters::method::get())
         .and(warp::path("ready"))
-        .map(|_| warp::reply::json(&true))
+        .map(|_| {
+            println!("READY READY");
+            warp::reply::json(&true)
+        })
         .recover(rejection_handler)
         .and_then(move |r| {
             let hmac_secret = hmac_secret.clone();
             sign_body(r, hmac_secret)
         });
 
-    warp::serve(ready).run(([127, 0, 0, 1], 3030)).await;
+    let addr: std::net::SocketAddr = format!("{}:{}", opt.host, opt.port).parse().unwrap();
+
+    warp::serve(ready).run(addr).await;
 }
 
