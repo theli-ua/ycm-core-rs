@@ -1,8 +1,15 @@
-use bytes::Bytes;
-use ring::hmac;
+use std::convert::Infallible;
 use std::path::PathBuf;
+use std::sync::Arc;
+
+use ring::hmac;
+
 use structopt::StructOpt;
-use warp::Filter;
+
+use warp::{
+    hyper::{body::Bytes, StatusCode},
+    Filter, Rejection, Reply,
+};
 
 const HMAC_HEADER: &'static str = "x-ycm-hmac";
 
@@ -42,21 +49,67 @@ struct OptionsFile {
     hmac_secret: String,
 }
 
+async fn sign_body(
+    reply: impl Reply,
+    hmac_secret: Arc<hmac::Key>,
+) -> Result<impl Reply, std::convert::Infallible> {
+    let mut response = reply.into_response();
+    let sig = if let Ok(body) = warp::hyper::body::to_bytes(response.body_mut()).await {
+        base64::encode(hmac::sign(&hmac_secret, &body).as_ref())
+    } else {
+        String::from("")
+    };
+
+    Ok(warp::reply::with_header(response, HMAC_HEADER, sig))
+}
+
+#[derive(serde::Serialize)]
+struct ErrorMessage {
+    code: u16,
+    message: String,
+}
+
+async fn rejection_handler(r: Rejection) -> Result<impl Reply, Infallible> {
+    let code;
+    let message;
+
+    if r.is_not_found() {
+        code = StatusCode::NOT_FOUND;
+        message = "NOT_FOUND";
+    } else if let Some(_) = r.find::<warp::filters::body::BodyDeserializeError>() {
+        code = StatusCode::BAD_REQUEST;
+        message = "BAD_REQUEST";
+    } else if let Some(_) = r.find::<warp::reject::MethodNotAllowed>() {
+        code = StatusCode::METHOD_NOT_ALLOWED;
+        message = "METHOD_NOT_ALLOWED";
+    } else {
+        code = StatusCode::INTERNAL_SERVER_ERROR;
+        message = "INTERNAL_SERVER_ERROR";
+    }
+
+    let json = warp::reply::json(&ErrorMessage {
+        code: code.as_u16(),
+        message: message.to_string(),
+    });
+
+    Ok(warp::reply::with_status(json, code))
+}
 #[tokio::main]
 async fn main() {
     let opt = Opt::from_args();
     let options: OptionsFile =
         serde_json::from_reader(std::fs::File::open(opt.options_file.clone()).unwrap()).unwrap();
     std::fs::remove_file(opt.options_file).unwrap();
-    let hmac_secret = hmac::Key::new(
+    let hmac_secret = Arc::from(hmac::Key::new(
         hmac::HMAC_SHA256,
         &base64::decode(&options.hmac_secret).unwrap()[..],
-    );
+    ));
 
+    let hmac_secret_clone = hmac_secret.clone();
     let hmac_filter = warp::header::<String>(HMAC_HEADER)
         .and(warp::body::bytes())
-        .and_then(move |hmac_value, body: bytes::Bytes| {
-            let hmac_secret = hmac_secret.clone();
+        .and_then(move |hmac_value, body: Bytes| {
+            let hmac_secret = hmac_secret_clone.clone();
             async move {
                 let hmac_value = base64::decode(&hmac_value).unwrap();
                 if hmac::verify(&hmac_secret, body.as_ref(), hmac_value.as_ref()).is_err() {
@@ -70,7 +123,13 @@ async fn main() {
     let ready = hmac_filter
         .and(warp::filters::method::get())
         .and(warp::path("ready"))
-        .map(|_| warp::reply::json(&true));
+        .map(|_| warp::reply::json(&true))
+        .recover(rejection_handler)
+        .and_then(move |r| {
+            let hmac_secret = hmac_secret.clone();
+            sign_body(r, hmac_secret)
+        });
 
     warp::serve(ready).run(([127, 0, 0, 1], 3030)).await;
 }
+

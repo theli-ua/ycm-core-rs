@@ -16,7 +16,6 @@ debug = true
 
 [dependencies]
 base64 = "0.13"
-bytes = "1"
 lazy_static = "1.4.0"
 lcs = "0.2.0"
 log = "0"
