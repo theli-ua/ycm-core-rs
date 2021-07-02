@@ -6,6 +6,7 @@ use ring::hmac;
 
 use structopt::StructOpt;
 
+use warp::reply::Response;
 use warp::{
     hyper::{body::Bytes, StatusCode},
     Filter, Rejection, Reply,
@@ -53,12 +54,19 @@ async fn sign_body(
     reply: impl Reply,
     hmac_secret: Arc<hmac::Key>,
 ) -> Result<impl Reply, std::convert::Infallible> {
-    let mut response = reply.into_response();
-    let sig = if let Ok(body) = warp::hyper::body::to_bytes(response.body_mut()).await {
-        base64::encode(hmac::sign(&hmac_secret, &body).as_ref())
+    let (parts, body) = reply.into_response().into_parts();
+    let (sig, body) = if let Ok(body) = warp::hyper::body::to_bytes(body).await {
+        (
+            base64::encode(hmac::sign(&hmac_secret, &body).as_ref()),
+            warp::hyper::body::Body::from(body),
+        )
     } else {
-        String::from("")
+        (
+            String::from(""),
+            warp::hyper::body::Body::from(Bytes::default()),
+        )
     };
+    let response = Response::from_parts(parts, body);
 
     Ok(warp::reply::with_header(response, HMAC_HEADER, sig))
 }
