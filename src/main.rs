@@ -2,6 +2,7 @@ use std::convert::Infallible;
 use std::path::PathBuf;
 use std::sync::Arc;
 
+use log::error;
 use ring::hmac;
 
 use structopt::StructOpt;
@@ -111,6 +112,10 @@ async fn rejection_handler(r: Rejection) -> Result<impl Reply, Infallible> {
 #[tokio::main]
 async fn main() {
     let opt = Opt::from_args();
+    env_logger::Builder::from_env(
+        env_logger::Env::default().default_filter_or(opt.log.to_string()),
+    )
+    .init();
     let options: OptionsFile =
         serde_json::from_reader(std::fs::File::open(opt.options_file.clone()).unwrap()).unwrap();
     std::fs::remove_file(opt.options_file).unwrap();
@@ -140,7 +145,7 @@ async fn main() {
                     let expected = ctx.sign();
 
                     if !expected.as_ref().eq(&hmac_value) {
-                        println!("non matching hmac: {:?}, {:?}", hmac_value, body.as_ref());
+                        error!("Non matching hmac: {:?}, {:?}", hmac_value, body.as_ref());
                         Err(warp::reject::not_found())
                     } else {
                         Ok(())
@@ -149,19 +154,16 @@ async fn main() {
             },
         );
 
-    println!("starting READY");
     let ready = hmac_filter
         .and(warp::filters::method::get())
         .and(warp::path("ready"))
-        .map(|_| {
-            println!("READY READY");
-            warp::reply::json(&true)
-        })
+        .map(|_| warp::reply::json(&true))
         .recover(rejection_handler)
         .and_then(move |r| {
             let hmac_secret = hmac_secret.clone();
             sign_body(r, hmac_secret)
-        });
+        })
+        .with(warp::log("ycmd"));
 
     let addr: std::net::SocketAddr = format!("{}:{}", opt.host, opt.port).parse().unwrap();
 
