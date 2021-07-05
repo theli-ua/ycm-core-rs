@@ -15,6 +15,8 @@ use warp::{
     Filter, Rejection, Reply,
 };
 
+mod routes;
+
 const HMAC_HEADER: &'static str = "x-ycm-hmac";
 
 #[derive(Debug, StructOpt)]
@@ -22,7 +24,6 @@ const HMAC_HEADER: &'static str = "x-ycm-hmac";
 struct Opt {
     #[structopt(long, parse(from_os_str))]
     options_file: PathBuf,
-
     #[structopt(long, default_value = "127.0.0.1")]
     host: String,
 
@@ -157,6 +158,7 @@ async fn main() {
     let ready = hmac_filter
         .and(warp::filters::method::get())
         .and(warp::path("ready"))
+        .or(warp::path("healthy"))
         .map(|_| warp::reply::json(&true))
         .recover(rejection_handler)
         .and_then(move |r| {
