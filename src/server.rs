@@ -1,3 +1,5 @@
+use super::ycmd_types::*;
+
 #[derive(serde::Deserialize)]
 pub struct Options {
     pub hmac_secret: String,
@@ -14,5 +16,9 @@ impl ServerState {
     }
     pub fn is_healthy(&self) -> bool {
         true
+    }
+
+    pub fn completions(&self, request: SimpleRequest) -> CompletionResponse {
+        unimplemented!()
     }
 }

@@ -15,6 +15,7 @@ use warp::{
 };
 
 use super::server::{Options, ServerState};
+use super::ycmd_types;
 const HMAC_HEADER: &'static str = "x-ycm-hmac";
 
 pub fn get_routes(
@@ -37,6 +38,18 @@ pub fn get_routes(
         .and(warp::path("healthy"))
         .and(state_filter.clone())
         .map(|state: Arc<ServerState>| warp::reply::json(&state.is_healthy()));
+
+    let completions = warp::filters::method::post()
+        .and(warp::path("completions"))
+        .and(state_filter.clone())
+        .and(warp::body::json())
+        .map(
+            |state: Arc<ServerState>, request: ycmd_types::SimpleRequest| {
+                warp::reply::json(&state.completions(request))
+            },
+        );
+
+    let ycmd_paths = ready.or(healthy).or(completions);
 
     let key = hmac_secret.clone();
     warp::header::<String>(HMAC_HEADER)
@@ -66,7 +79,7 @@ pub fn get_routes(
             },
         )
         .untuple_one()
-        .and(ready.or(healthy))
+        .and(ycmd_paths)
         .recover(rejection_handler)
         .and_then(move |r| {
             let hmac_secret = hmac_secret.clone();

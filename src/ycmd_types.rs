@@ -1,20 +1,44 @@
 #![allow(dead_code)]
+
+use std::collections::HashMap;
+
+#[derive(serde::Serialize)]
 pub struct Location {
     line_num: usize,
     column_num: usize,
     filepath: String,
 }
 
+#[derive(serde::Deserialize)]
+pub struct FileData {
+    filetypes: Vec<String>,
+    contents: String,
+}
+
+#[derive(serde::Deserialize)]
+pub struct SimpleRequest {
+    line_num: usize,
+    column_num: usize,
+    filepath: String,
+    file_data: HashMap<String, FileData>,
+    completer_target: CompleterTarget,
+    working_dir: String,
+    extra_conf_data: serde_json::Value,
+}
+
+#[derive(serde::Serialize)]
 pub struct Range {
     start: Location,
     end: Location,
 }
 
+#[derive(serde::Serialize)]
 pub struct FixitChunk {
     replacement_string: String,
     range: Range,
 }
 
+#[derive(serde::Serialize)]
 pub struct Fixit {
     text: String,
     location: Location,
@@ -23,12 +47,14 @@ pub struct Fixit {
     chunks: Vec<FixitChunk>,
 }
 
+#[derive(serde::Serialize)]
 pub struct CandidateExtraData {
     doc_string: String,
     fixits: Vec<Fixit>,
     resolve: Option<usize>,
 }
 
+#[derive(serde::Serialize)]
 pub struct Candidate {
     insertion_text: String,
     menu_text: Option<String>,
@@ -39,22 +65,26 @@ pub struct Candidate {
 }
 
 #[allow(non_camel_case_types)]
+#[derive(serde::Deserialize)]
 pub enum CompleterTarget {
     filetype_default,
     identifier,
     filetype(String),
 }
 
+#[derive(serde::Serialize)]
 pub struct Exception {
     message: String,
 }
 
+#[derive(serde::Serialize)]
 pub struct ExceptionResponse {
     exception: Exception,
     message: String,
     traceback: String,
 }
 
+#[derive(serde::Serialize)]
 pub struct CompletionResponse {
     completions: Vec<Candidate>,
     completion_start_column: usize,
