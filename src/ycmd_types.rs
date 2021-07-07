@@ -1,3 +1,4 @@
+#![allow(dead_code)]
 pub struct Location {
     line_num: usize,
     column_num: usize,
