@@ -2,43 +2,73 @@
 
 use std::collections::HashMap;
 
-#[derive(serde::Serialize)]
+use serde::{Deserialize, Serialize};
+
+#[derive(Serialize)]
 pub struct Location {
     line_num: usize,
     column_num: usize,
     filepath: String,
 }
 
-#[derive(serde::Deserialize)]
+#[derive(Deserialize, Debug)]
 pub struct FileData {
     filetypes: Vec<String>,
     contents: String,
 }
 
-#[derive(serde::Deserialize)]
+#[derive(Deserialize, Debug)]
+pub enum Event {
+    FileReadyToParse,
+    BufferUnload,
+    BufferVisit,
+    InsertLeave,
+    CurrentIdentifierFinished,
+}
+
+#[derive(Deserialize, Debug)]
+pub struct UltisnipSnippet {
+    trigger: String,
+    description: String,
+}
+
+#[derive(Deserialize, Debug)]
+pub struct EventNotification {
+    line_num: usize,
+    column_num: usize,
+    filepath: String,
+    file_data: HashMap<String, FileData>,
+    completer_target: Option<CompleterTarget>,
+    working_dir: Option<String>,
+    extra_conf_data: Option<serde_json::Value>,
+    event_name: Event,
+    ultisnips_snippets: Option<Vec<UltisnipSnippet>>,
+}
+
+#[derive(Deserialize)]
 pub struct SimpleRequest {
     line_num: usize,
     column_num: usize,
     filepath: String,
     file_data: HashMap<String, FileData>,
-    completer_target: CompleterTarget,
-    working_dir: String,
-    extra_conf_data: serde_json::Value,
+    completer_target: Option<CompleterTarget>,
+    working_dir: Option<String>,
+    extra_conf_data: Option<serde_json::Value>,
 }
 
-#[derive(serde::Serialize)]
+#[derive(Serialize)]
 pub struct Range {
     start: Location,
     end: Location,
 }
 
-#[derive(serde::Serialize)]
+#[derive(Serialize)]
 pub struct FixitChunk {
     replacement_string: String,
     range: Range,
 }
 
-#[derive(serde::Serialize)]
+#[derive(Serialize)]
 pub struct Fixit {
     text: String,
     location: Location,
@@ -47,14 +77,14 @@ pub struct Fixit {
     chunks: Vec<FixitChunk>,
 }
 
-#[derive(serde::Serialize)]
+#[derive(Serialize)]
 pub struct CandidateExtraData {
     doc_string: String,
     fixits: Vec<Fixit>,
     resolve: Option<usize>,
 }
 
-#[derive(serde::Serialize)]
+#[derive(Serialize)]
 pub struct Candidate {
     insertion_text: String,
     menu_text: Option<String>,
@@ -65,37 +95,39 @@ pub struct Candidate {
 }
 
 #[allow(non_camel_case_types)]
-#[derive(serde::Deserialize)]
+#[derive(Deserialize, Debug)]
 pub enum CompleterTarget {
     filetype_default,
     identifier,
     filetype(String),
 }
 
-#[derive(serde::Serialize)]
+#[derive(Serialize)]
 pub struct Exception {
     message: String,
 }
 
-#[derive(serde::Serialize)]
+#[derive(Serialize)]
 pub struct ExceptionResponse {
     exception: Exception,
     message: String,
     traceback: String,
 }
 
-#[derive(serde::Serialize)]
+#[derive(Serialize)]
 pub struct CompletionResponse {
     completions: Vec<Candidate>,
     completion_start_column: usize,
     errors: Vec<ExceptionResponse>,
 }
 
+#[derive(Serialize)]
 pub struct ItemData {
     key: String,
     value: String,
 }
 
+#[derive(Serialize)]
 pub struct ServerData {
     name: String,
     is_running: bool,
@@ -106,12 +138,15 @@ pub struct ServerData {
     logfiles: Vec<String>,
     extras: Vec<ItemData>,
 }
+
+#[derive(Serialize)]
 pub struct DebugInfoResponse {
     name: String,
     servers: Vec<ServerData>,
     items: Vec<ItemData>,
 }
 
+#[derive(Serialize)]
 pub enum DiagnosticKind {
     WARNING,
     ERROR,
@@ -119,6 +154,7 @@ pub enum DiagnosticKind {
     HINT,
 }
 
+#[derive(Serialize)]
 pub struct DiagnosticData {
     ranges: Vec<Range>,
     location: Location,
@@ -128,8 +164,21 @@ pub struct DiagnosticData {
     fixit_available: bool,
 }
 
+#[derive(Serialize)]
 pub struct DiagnosticMessage {
     filepath: String,
     diagnostics: Vec<DiagnosticData>,
+}
+
+#[derive(Serialize)]
+pub enum Available {
+    YES,
+    NO,
+    PENDING,
+}
+
+#[derive(Deserialize)]
+pub struct Subserver {
+    subserver: String,
 }
 

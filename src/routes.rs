@@ -18,40 +18,9 @@ use super::server::{Options, ServerState};
 use super::ycmd_types;
 const HMAC_HEADER: &'static str = "x-ycm-hmac";
 
-pub fn get_routes(
-    options: Options,
-) -> impl warp::Filter<Extract = impl Reply, Error = Infallible> + Send + Sync + 'static + Clone {
-    let hmac_secret = Arc::from(hmac::Key::new(
-        hmac::HMAC_SHA256,
-        &base64::decode(&options.hmac_secret).unwrap()[..],
-    ));
-
-    let server_state = Arc::from(ServerState::new(options));
-    let state_filter = warp::any().map(move || server_state.clone());
-
-    let ready = warp::filters::method::get()
-        .and(warp::path("ready"))
-        .and(state_filter.clone())
-        .map(|state: Arc<ServerState>| warp::reply::json(&state.is_ready()));
-
-    let healthy = warp::filters::method::get()
-        .and(warp::path("healthy"))
-        .and(state_filter.clone())
-        .map(|state: Arc<ServerState>| warp::reply::json(&state.is_healthy()));
-
-    let completions = warp::filters::method::post()
-        .and(warp::path("completions"))
-        .and(state_filter.clone())
-        .and(warp::body::json())
-        .map(
-            |state: Arc<ServerState>, request: ycmd_types::SimpleRequest| {
-                warp::reply::json(&state.completions(request))
-            },
-        );
-
-    let ycmd_paths = ready.or(healthy).or(completions);
-
-    let key = hmac_secret.clone();
+fn hmac_filter(
+    key: Arc<hmac::Key>,
+) -> impl warp::Filter<Extract = (Bytes,), Error = Rejection> + Send + Sync + 'static + Clone {
     warp::header::<String>(HMAC_HEADER)
         .and(warp::body::bytes())
         .and(warp::path::full())
@@ -74,23 +43,131 @@ pub fn get_routes(
                     error!("Non matching hmac: {:?}, {:?}", hmac_value, body.as_ref());
                     future::err(warp::reject::not_found())
                 } else {
-                    future::ok(())
+                    future::ok(body)
                 }
             },
         )
-        .untuple_one()
-        .and(ycmd_paths)
+}
+
+fn hmac_filter_json_body<T: Send + serde::de::DeserializeOwned>(
+    key: Arc<hmac::Key>,
+) -> impl warp::Filter<Extract = (T,), Error = Rejection> + Send + Sync + 'static + Clone {
+    hmac_filter(key).and_then(move |body: Bytes| match serde_json::from_slice(&body) {
+        Ok(v) => future::ok(v),
+        Err(_) => future::err(warp::reject()),
+    })
+}
+
+fn hmac_filter_discard_body(
+    key: Arc<hmac::Key>,
+) -> impl warp::Filter<Extract = (), Error = Rejection> + Send + Sync + 'static + Clone {
+    hmac_filter(key).map(move |_: Bytes| ()).untuple_one()
+}
+
+pub fn get_routes(
+    options: Options,
+) -> impl warp::Filter<Extract = impl Reply, Error = Infallible> + Send + Sync + 'static + Clone {
+    let hmac_secret = Arc::from(hmac::Key::new(
+        hmac::HMAC_SHA256,
+        &base64::decode(&options.hmac_secret).unwrap()[..],
+    ));
+
+    let server_state = Arc::from(ServerState::new(options));
+    let state_filter = warp::any().map(move || server_state.clone());
+
+    let ready = warp::filters::method::get()
+        .and(warp::path("ready"))
+        .and(hmac_filter_discard_body(hmac_secret.clone()))
+        .and(state_filter.clone())
+        .map(|state: Arc<ServerState>| warp::reply::json(&state.is_ready()));
+
+    let healthy = warp::filters::method::get()
+        .and(warp::path("healthy"))
+        .and(hmac_filter_discard_body(hmac_secret.clone()))
+        .and(state_filter.clone())
+        .map(|state: Arc<ServerState>| warp::reply::json(&state.is_healthy()));
+
+    let completions = warp::filters::method::post()
+        .and(warp::path("completions"))
+        .and(hmac_filter_json_body(hmac_secret.clone()))
+        .and(state_filter.clone())
+        .map(
+            |request: ycmd_types::SimpleRequest, state: Arc<ServerState>| {
+                warp::reply::json(&state.completions(request))
+            },
+        );
+
+    let debug_info = warp::filters::method::post()
+        .and(warp::path("debug_info"))
+        .and(state_filter.clone())
+        .and(hmac_filter_json_body(hmac_secret.clone()))
+        .map(
+            |state: Arc<ServerState>, request: ycmd_types::SimpleRequest| {
+                warp::reply::json(&state.debug_info(request))
+            },
+        );
+
+    let defined_subcommands = warp::filters::method::post()
+        .and(warp::path("debug_info"))
+        .and(state_filter.clone())
+        .and(hmac_filter_json_body(hmac_secret.clone()))
+        .map(
+            |state: Arc<ServerState>, request: ycmd_types::SimpleRequest| {
+                warp::reply::json(&state.defined_subcommands(request))
+            },
+        );
+
+    let semantic_completer_available = warp::filters::method::post()
+        .and(warp::path("semantic_completion_available"))
+        .and(state_filter.clone())
+        .and(hmac_filter_json_body(hmac_secret.clone()))
+        .map(
+            |state: Arc<ServerState>, request: ycmd_types::SimpleRequest| {
+                warp::reply::json(&state.semantic_completer_available(request))
+            },
+        );
+
+    let signature_help_available = warp::filters::method::get()
+        .and(state_filter.clone())
+        .and(warp::path("signature_help_available"))
+        .and(hmac_filter_discard_body(hmac_secret.clone()))
+        .and(warp::query::query())
+        .map(|state: Arc<ServerState>, request: ycmd_types::Subserver| {
+            warp::reply::json(&state.signature_help_available(request))
+        });
+
+    let event_notification = warp::filters::method::post()
+        .and(warp::path("event_notification"))
+        .and(state_filter.clone())
+        .and(hmac_filter_json_body(hmac_secret.clone()))
+        .map(
+            |state: Arc<ServerState>, request: ycmd_types::EventNotification| {
+                warp::reply::json(&state.event_notification(request))
+            },
+        );
+
+    let ycmd_paths = ready
+        .or(healthy)
+        .or(completions)
+        .or(event_notification)
+        .or(debug_info)
+        .or(defined_subcommands)
+        .or(semantic_completer_available)
+        .or(signature_help_available);
+
+    ycmd_paths
         .recover(rejection_handler)
         .and_then(move |r| {
             let hmac_secret = hmac_secret.clone();
             sign_body(r, hmac_secret)
         })
+        .with(warp::log("ycmd"))
 }
 
 async fn sign_body(
     reply: impl Reply,
     hmac_secret: Arc<hmac::Key>,
-) -> Result<impl Reply, std::convert::Infallible> {
+) -> Result<impl Reply, Infallible> {
     let (parts, body) = reply.into_response().into_parts();
     let (sig, body) = if let Ok(body) = warp::hyper::body::to_bytes(body).await {
         (
