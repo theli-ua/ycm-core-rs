@@ -141,9 +141,32 @@ pub struct ServerData {
 
 #[derive(Serialize)]
 pub struct DebugInfoResponse {
-    name: String,
-    servers: Vec<ServerData>,
-    items: Vec<ItemData>,
+    pub name: String,
+    pub servers: Vec<ServerData>,
+    pub items: Vec<ItemData>,
+}
+
+#[derive(Serialize)]
+pub struct PythonInfo {
+    pub executable: String,
+    pub version: String,
+}
+#[derive(Serialize)]
+pub struct ClangInfo {
+    pub has_support: bool,
+    pub version: Option<String>,
+}
+#[derive(Serialize)]
+pub struct ExtraInfo {
+    pub path: String,
+    pub is_loaded: bool,
+}
+#[derive(Serialize)]
+pub struct DebugInfo {
+    pub python: PythonInfo,
+    pub clang: ClangInfo,
+    pub extra_conf: ExtraInfo,
+    pub completer: DebugInfoResponse,
 }
 
 #[derive(Serialize)]
@@ -180,5 +203,24 @@ pub enum Available {
 #[derive(Deserialize)]
 pub struct Subserver {
     subserver: String,
+}
+
+#[derive(Serialize)]
+pub struct SimpleMessage {
+    message: String,
+}
+
+#[derive(Serialize)]
+#[serde(untagged)]
+pub enum Message {
+    SimpleMessage(SimpleMessage),
+    Diagnostics(DiagnosticMessage),
+}
+
+#[derive(Serialize)]
+#[serde(untagged)]
+pub enum MessagePollResponse {
+    MessagePollResponse(bool),
+    Message(Message),
 }
 

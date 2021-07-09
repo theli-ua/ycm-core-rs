@@ -146,8 +146,21 @@ pub fn get_routes(
             },
         );
 
+    let receive_messages = warp::filters::method::post()
+        .and(warp::path("receive_messages"))
+        .and(state_filter.clone())
+        .and(hmac_filter_json_body(hmac_secret.clone()))
+        .and_then(
+            |state: Arc<ServerState>, request: ycmd_types::SimpleRequest| async move {
+                Ok::<warp::reply::Json, warp::Rejection>(warp::reply::json(
+                    &state.get_messages(request).await,
+                ))
+            },
+        );
+
     let ycmd_paths = ready
         .or(healthy)
+        .or(receive_messages)
         .or(completions)
         .or(event_notification)
         .or(debug_info)

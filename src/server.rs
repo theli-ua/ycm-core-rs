@@ -1,3 +1,5 @@
+use std::time::Duration;
+
 use super::ycmd_types::*;
 
 #[derive(serde::Deserialize)]
@@ -22,8 +24,26 @@ impl ServerState {
         unimplemented!()
     }
 
-    pub fn debug_info(&self, _request: SimpleRequest) -> DebugInfoResponse {
-        unimplemented!()
+    pub fn debug_info(&self, _request: SimpleRequest) -> DebugInfo {
+        DebugInfo {
+            python: PythonInfo {
+                executable: "/dev/null".into(),
+                version: "0".into(),
+            },
+            clang: ClangInfo {
+                has_support: false,
+                version: None,
+            },
+            extra_conf: ExtraInfo {
+                path: "/dev/null".into(),
+                is_loaded: false,
+            },
+            completer: DebugInfoResponse {
+                name: "Rust YCMD".into(),
+                servers: vec![],
+                items: vec![],
+            },
+        }
     }
 
     pub fn defined_subcommands(&self, _request: SimpleRequest) -> Vec<String> {
@@ -40,5 +60,10 @@ impl ServerState {
 
     pub fn event_notification(&self, _request: EventNotification) -> Vec<DiagnosticData> {
         Vec::new()
+    }
+
+    pub async fn get_messages(&self, _request: SimpleRequest) -> MessagePollResponse {
+        tokio::time::sleep(Duration::from_secs(30)).await;
+        MessagePollResponse::MessagePollResponse(true)
     }
 }
