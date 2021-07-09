@@ -20,8 +20,12 @@ impl ServerState {
         true
     }
 
-    pub fn completions(&self, _request: SimpleRequest) -> CompletionResponse {
-        unimplemented!()
+    pub fn completions(&self, request: SimpleRequest) -> CompletionResponse {
+        CompletionResponse {
+            completions: vec![],
+            completion_start_column: request.column_num,
+            errors: vec![],
+        }
     }
 
     pub fn debug_info(&self, _request: SimpleRequest) -> DebugInfo {

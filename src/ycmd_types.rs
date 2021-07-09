@@ -47,13 +47,13 @@ pub struct EventNotification {
 
 #[derive(Deserialize)]
 pub struct SimpleRequest {
-    line_num: usize,
-    column_num: usize,
-    filepath: String,
-    file_data: HashMap<String, FileData>,
-    completer_target: Option<CompleterTarget>,
-    working_dir: Option<String>,
-    extra_conf_data: Option<serde_json::Value>,
+    pub line_num: usize,
+    pub column_num: usize,
+    pub filepath: String,
+    pub file_data: HashMap<String, FileData>,
+    pub completer_target: Option<CompleterTarget>,
+    pub working_dir: Option<String>,
+    pub extra_conf_data: Option<serde_json::Value>,
 }
 
 #[derive(Serialize)]
@@ -116,9 +116,9 @@ pub struct ExceptionResponse {
 
 #[derive(Serialize)]
 pub struct CompletionResponse {
-    completions: Vec<Candidate>,
-    completion_start_column: usize,
-    errors: Vec<ExceptionResponse>,
+    pub completions: Vec<Candidate>,
+    pub completion_start_column: usize,
+    pub errors: Vec<ExceptionResponse>,
 }
 
 #[derive(Serialize)]
