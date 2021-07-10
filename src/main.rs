@@ -3,6 +3,8 @@ use std::path::PathBuf;
 use structopt::StructOpt;
 use ycm_core::routes;
 
+use filedescriptor::{FileDescriptor, StdioDescriptor};
+
 #[derive(Debug, StructOpt)]
 #[structopt(name = "ycmd", about = "YCMD-rs", rename_all = "snake-case")]
 struct Opt {
@@ -47,6 +49,17 @@ async fn main() {
     let options: ycm_core::server::Options =
         serde_json::from_reader(std::fs::File::open(opt.options_file.clone()).unwrap()).unwrap();
     std::fs::remove_file(opt.options_file).unwrap();
+
+    let _stdio_guard = opt.stdout.map(|path| {
+        let file = std::fs::File::create(path).unwrap();
+        let fd = FileDescriptor::redirect_stdio(&file, StdioDescriptor::Stdout);
+        (file, fd)
+    });
+    let _sterr_guard = opt.stderr.map(|path| {
+        let file = std::fs::File::create(path).unwrap();
+        let fd = FileDescriptor::redirect_stdio(&file, StdioDescriptor::Stderr);
+        (file, fd)
+    });
 
     let addr: std::net::SocketAddr = format!("{}:{}", opt.host, opt.port).parse().unwrap();
 

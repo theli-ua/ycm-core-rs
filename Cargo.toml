@@ -16,6 +16,7 @@ debug = true
 
 [dependencies]
 base64 = "0.13"
+filedescriptor = "0.8.0"
 lazy_static = "1.4.0"
 lcs = "0.2.0"
 log = "0.4"
