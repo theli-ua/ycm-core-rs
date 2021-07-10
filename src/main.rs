@@ -50,7 +50,12 @@ async fn main() {
 
     let addr: std::net::SocketAddr = format!("{}:{}", opt.host, opt.port).parse().unwrap();
 
-    let routes = routes::get_routes(options);
-    warp::serve(routes).run(addr).await;
+    let (routes, mut shutdown) = routes::get_routes(options);
+    warp::serve(routes)
+        .bind_with_graceful_shutdown(addr, async move {
+            shutdown.recv().await;
+        })
+        .1
+        .await;
 }
 

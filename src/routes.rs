@@ -14,6 +14,8 @@ use warp::{
     Filter, Rejection, Reply,
 };
 
+use tokio::sync::mpsc;
+
 use super::server::{Options, ServerState};
 use super::ycmd_types;
 const HMAC_HEADER: &'static str = "x-ycm-hmac";
@@ -66,7 +68,10 @@ fn hmac_filter_discard_body(
 
 pub fn get_routes(
     options: Options,
-) -> impl warp::Filter<Extract = impl Reply, Error = Infallible> + Send + Sync + 'static + Clone {
+) -> (
+    impl warp::Filter<Extract = impl Reply, Error = Infallible> + Send + Sync + 'static + Clone,
+    mpsc::Receiver<()>,
+) {
     let hmac_secret = Arc::from(hmac::Key::new(
         hmac::HMAC_SHA256,
         &base64::decode(&options.hmac_secret).unwrap()[..],
@@ -158,6 +163,19 @@ pub fn get_routes(
             },
         );
 
+    let (shutdown_tx, shutdown_rx) = mpsc::channel(1);
+
+    let shutdown = warp::filters::method::post()
+        .and(warp::path("shutdown"))
+        .and(hmac_filter_discard_body(hmac_secret.clone()))
+        .and_then(move || {
+            let shutdown_tx = shutdown_tx.clone();
+            async move {
+                shutdown_tx.send(()).await.unwrap();
+                Ok::<_, warp::Rejection>(warp::reply())
+            }
+        });
+
     let ycmd_paths = ready
         .or(healthy)
         .or(receive_messages)
@@ -166,15 +184,19 @@ pub fn get_routes(
         .or(debug_info)
         .or(defined_subcommands)
         .or(semantic_completer_available)
-        .or(signature_help_available);
+        .or(signature_help_available)
+        .or(shutdown);
 
-    ycmd_paths
-        .recover(rejection_handler)
-        .and_then(move |r| {
-            let hmac_secret = hmac_secret.clone();
-            sign_body(r, hmac_secret)
-        })
-        .with(warp::log("ycmd"))
+    (
+        ycmd_paths
+            .recover(rejection_handler)
+            .and_then(move |r| {
+                let hmac_secret = hmac_secret.clone();
+                sign_body(r, hmac_secret)
+            })
+            .with(warp::log("ycmd")),
+        shutdown_rx,
+    )
 }
 
 async fn sign_body(

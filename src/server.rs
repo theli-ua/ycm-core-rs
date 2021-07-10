@@ -13,9 +13,11 @@ impl ServerState {
     pub fn new(_opt: Options) -> Self {
         Self {}
     }
+
     pub fn is_ready(&self) -> bool {
         true
     }
+
     pub fn is_healthy(&self) -> bool {
         true
     }
