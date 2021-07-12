@@ -157,9 +157,7 @@ pub fn get_routes(
         .and(hmac_filter_json_body(hmac_secret.clone()))
         .and_then(
             |state: Arc<ServerState>, request: ycmd_types::SimpleRequest| async move {
-                Ok::<warp::reply::Json, warp::Rejection>(warp::reply::json(
-                    &state.get_messages(request).await,
-                ))
+                Ok::<_, warp::Rejection>(warp::reply::json(&state.get_messages(request).await))
             },
         );
 
@@ -199,6 +197,7 @@ pub fn get_routes(
     )
 }
 
+/// Sign reply with hmac
 async fn sign_body(
     reply: impl Reply,
     hmac_secret: Arc<hmac::Key>,
