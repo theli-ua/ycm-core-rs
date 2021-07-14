@@ -182,6 +182,34 @@ pub fn filter_and_sort_candidates<'a, 'b>(
     results
 }
 
+pub fn filter_and_sort_generic_candidates<'a, T: 'a, F: Fn(&T) -> &'a str>(
+    candidates: Vec<T>,
+    query: &str,
+    max_candidates: usize,
+    f: F,
+) -> Vec<T> {
+    let query = Word::new(query);
+    let parsed_candidates = candidates
+        .iter()
+        .map(|c| Candidate::new(f(&c)))
+        .collect::<Vec<_>>();
+    let mut results = parsed_candidates
+        .iter()
+        .zip(candidates.into_iter())
+        .map(|(parsed, c)| (c, parsed.matches_query(&query)))
+        .filter(|(_, q)| q.is_subsequence)
+        .collect::<Vec<_>>();
+
+    let max_candidates = max_candidates.min(results.len());
+    results.partial_sort(max_candidates, |a, b| a.1.partial_cmp(&b.1).unwrap());
+
+    results
+        .into_iter()
+        .take(max_candidates)
+        .map(|(c, _)| c)
+        .collect()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -215,6 +243,24 @@ mod tests {
             .map(|r| r.candidate.text)
             .collect::<Vec<_>>();
         assert_eq!(expected_candidates, result_strings);
+    }
+
+    #[test]
+    fn test_filter_and_sort_generic() {
+        #[derive(Eq, PartialEq, Debug)]
+        struct C {
+            c: &'static str,
+        }
+        let candidates = std::array::IntoIter::new(["acb", "ab", "Ab", "bab", "A , B", "BA"])
+            .map(|c| C { c })
+            .collect::<Vec<_>>();
+        let q = "ab";
+
+        let results = filter_and_sort_generic_candidates(candidates, &q, 3, |c| c.c);
+        let expected_candidates = std::array::IntoIter::new(["A , B", "ab", "Ab"])
+            .map(|c| C { c })
+            .collect::<Vec<_>>();
+        assert_eq!(expected_candidates, results);
     }
 
     #[test]
