@@ -1,17 +1,40 @@
-use std::time::Duration;
+use std::{collections::HashMap, time::Duration};
+
+use std::sync::Mutex;
+
+use crate::completer::{Completer, CompletionConfig, GenericCompleters};
 
 use super::ycmd_types::*;
 
 #[derive(serde::Deserialize)]
 pub struct Options {
     pub hmac_secret: String,
+    pub max_num_candidates: usize,
+    pub min_num_of_chars_for_completion: usize,
+    pub max_num_candidates_to_detail: isize,
+    pub max_diagnostics_to_display: usize,
 }
 
-pub struct ServerState {}
+pub struct ServerState {
+    generic_completers: Mutex<GenericCompleters>,
+}
 
 impl ServerState {
-    pub fn new(_opt: Options) -> Self {
-        Self {}
+    pub fn new(opt: Options) -> Self {
+        let config = CompletionConfig {
+            min_num_chars: opt.min_num_of_chars_for_completion,
+            max_diagnostics_to_display: opt.max_num_candidates,
+            completion_triggers: HashMap::default(),
+            signature_triggers: HashMap::default(),
+            max_candidates: opt.max_num_candidates,
+            max_candidates_to_detail: opt.max_num_candidates_to_detail,
+        };
+        Self {
+            generic_completers: Mutex::new(GenericCompleters {
+                completers: vec![],
+                config: config.clone(),
+            }),
+        }
     }
 
     pub fn is_ready(&self) -> bool {
@@ -23,8 +46,13 @@ impl ServerState {
     }
 
     pub fn completions(&self, request: SimpleRequest) -> CompletionResponse {
+        let candidates = self
+            .generic_completers
+            .lock()
+            .unwrap()
+            .compute_candidates(&request);
         CompletionResponse {
-            completions: vec![],
+            completions: candidates,
             completion_start_column: request.column_num,
             errors: vec![],
         }

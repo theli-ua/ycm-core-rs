@@ -1,6 +1,6 @@
 #![allow(dead_code)]
 
-use std::collections::HashMap;
+use std::{collections::HashMap, str::Lines};
 
 use serde::{Deserialize, Serialize};
 
@@ -56,6 +56,21 @@ pub struct SimpleRequest {
     pub extra_conf_data: Option<serde_json::Value>,
 }
 
+impl SimpleRequest {
+    pub fn lines(&self) -> Lines {
+        self.file_data.get(&self.filepath).unwrap().contents.lines()
+    }
+
+    pub fn line_value(&self) -> &str {
+        self.lines().nth(self.line_num).unwrap()
+    }
+
+    pub fn query(&self) -> &str {
+        //self[ 'start_codepoint' ] - 1 : self[ 'column_codepoint' ] - 1
+        unimplemented!()
+    }
+}
+
 #[derive(Serialize)]
 pub struct Range {
     start: Location,
@@ -86,12 +101,12 @@ pub struct CandidateExtraData {
 
 #[derive(Serialize)]
 pub struct Candidate {
-    insertion_text: String,
-    menu_text: Option<String>,
-    extra_menu_info: String,
-    detailed_info: String,
-    kind: String,
-    extra_data: CandidateExtraData,
+    pub insertion_text: String,
+    pub menu_text: Option<String>,
+    pub extra_menu_info: Option<String>,
+    pub detailed_info: Option<String>,
+    pub kind: Option<String>,
+    pub extra_data: Option<CandidateExtraData>,
 }
 
 #[allow(non_camel_case_types)]

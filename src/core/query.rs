@@ -182,31 +182,45 @@ pub fn filter_and_sort_candidates<'a, 'b>(
     results
 }
 
-pub fn filter_and_sort_generic_candidates<'a, T: 'a, F: Fn(&T) -> &'a str>(
+pub fn filter_and_sort_generic_candidates<T, F>(
     candidates: Vec<T>,
     query: &str,
     max_candidates: usize,
     f: F,
-) -> Vec<T> {
+) -> Vec<T>
+where
+    F: for<'b> Fn(&'b T) -> &'b str,
+{
     let query = Word::new(query);
     let parsed_candidates = candidates
         .iter()
-        .map(|c| Candidate::new(f(&c)))
+        .enumerate()
+        .map(|(i, c)| (i, Candidate::new(f(&c))))
         .collect::<Vec<_>>();
+
     let mut results = parsed_candidates
         .iter()
-        .zip(candidates.into_iter())
-        .map(|(parsed, c)| (c, parsed.matches_query(&query)))
+        .map(|(i, parsed)| (i, parsed.matches_query(&query)))
         .filter(|(_, q)| q.is_subsequence)
         .collect::<Vec<_>>();
 
     let max_candidates = max_candidates.min(results.len());
     results.partial_sort(max_candidates, |a, b| a.1.partial_cmp(&b.1).unwrap());
 
-    results
+    let results = results
         .into_iter()
         .take(max_candidates)
-        .map(|(c, _)| c)
+        .map(|(i, _)| *i)
+        .collect::<Vec<_>>();
+
+    //drop references to candidates
+    std::mem::drop(parsed_candidates);
+
+    let mut candidates = candidates.into_iter().map(Option::Some).collect::<Vec<_>>();
+
+    results
+        .into_iter()
+        .map(|i| unsafe { candidates.get_unchecked_mut(i) }.take().unwrap())
         .collect()
 }
 
@@ -249,16 +263,16 @@ mod tests {
     fn test_filter_and_sort_generic() {
         #[derive(Eq, PartialEq, Debug)]
         struct C {
-            c: &'static str,
+            c: String,
         }
         let candidates = std::array::IntoIter::new(["acb", "ab", "Ab", "bab", "A , B", "BA"])
-            .map(|c| C { c })
+            .map(|c| C { c: String::from(c) })
             .collect::<Vec<_>>();
         let q = "ab";
 
-        let results = filter_and_sort_generic_candidates(candidates, &q, 3, |c| c.c);
+        let results = filter_and_sort_generic_candidates(candidates, &q, 3, |c| &c.c);
         let expected_candidates = std::array::IntoIter::new(["A , B", "ab", "Ab"])
-            .map(|c| C { c })
+            .map(|c| C { c: String::from(c) })
             .collect::<Vec<_>>();
         assert_eq!(expected_candidates, results);
     }
