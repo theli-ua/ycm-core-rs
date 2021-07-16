@@ -1,4 +1,3 @@
-#![allow(dead_code)]
 use std::collections::HashMap;
 use std::ops::Deref;
 
@@ -104,6 +103,19 @@ static ref FILETYPE_TO_COMMENT_AND_STRING_REGEX: HashMap<&'static str, RE> = {
 
     map
 };
+
+
+// At least c++ and javascript support unicode identifiers, and identifiers may
+// start with unicode character, e.g. ålpha. So we need to accept any identifier
+// starting with an 'alpha' character or underscore. i.e. not starting with a
+// 'digit'. The following regex will match:
+//   - A character which is alpha or _. That is a character which is NOT:
+//     - a digit (\d)
+//     - non-alphanumeric
+//     - not an underscore
+//       (The latter two come from \W which is the negation of \w)
+//   - Followed by any alphanumeric or _ characters
+static ref DEFAULT_IDENTIFIER_REGEX: Regex = Regex::new(r"[^\W\d]\w*").unwrap();
 
 }
 

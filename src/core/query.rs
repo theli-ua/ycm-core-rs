@@ -167,7 +167,7 @@ impl PartialOrd for QueryResult<'_, '_> {
 }
 
 pub fn filter_and_sort_candidates<'a, 'b>(
-    candidates: &'a Vec<Candidate>,
+    candidates: &'a [Candidate],
     query: &'b Word,
     max_candidates: usize,
 ) -> Vec<QueryResult<'a, 'b>> {
