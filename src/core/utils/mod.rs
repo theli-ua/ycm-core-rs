@@ -1,3 +1,5 @@
+pub mod identifier;
+
 pub fn byte_off_to_unicode_off(s: &str, byte_off: usize) -> usize {
     unsafe { std::str::from_utf8_unchecked(&s.as_bytes()[..byte_off - 1]) }
         .chars()
