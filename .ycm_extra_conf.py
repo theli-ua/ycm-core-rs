@@ -1,8 +1,14 @@
 def Settings( **kwargs ):
-    return {
-            'ls': {
-                "rust-analyzer": {
-                     "diagnostics": { "disabled": ["incorrect-ident-case"] } 
+    return { 'ls': {
+                'checkOnSave' : { 'command' : 'clippy', 'allTargets': 'true'},
+                'procMacro' : {
+                    'enable': True
+                },
+                'cargo' : {
+                    'loadOutDirsFromCheck': True,
+                    'runBuildScripts': True
                     }
-                }
-            }
+                },
+        }
+
+

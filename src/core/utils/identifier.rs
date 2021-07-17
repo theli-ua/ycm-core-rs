@@ -139,7 +139,7 @@ fn replace_with_empty_lines(caps: &Captures) -> String {
         let whole = &caps[0];
         caps.iter()
             .skip(1)
-            .filter_map(|c| c)
+            .flatten()
             .map(|c| -> String {
                 let saved_prev = prev;
                 prev = c.end();

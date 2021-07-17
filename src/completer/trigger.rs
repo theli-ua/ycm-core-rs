@@ -15,12 +15,12 @@ pub fn parse_triggers(
                 .split(',')
                 .filter(|f| filetypes.is_empty() || filetypes.contains(*f))
             {
-                let re = res.entry(ftype.into()).or_insert(RegexSet::empty());
+                let re = res.entry(ftype.into()).or_insert_with(RegexSet::empty);
                 let mut patterns: Vec<_> = v
                     .iter()
                     .map(|p| {
-                        if p.starts_with(REGEX_PREFIX) {
-                            String::from(&p[REGEX_PREFIX.len()..])
+                        if let Some(stripped) = p.strip_prefix(REGEX_PREFIX) {
+                            String::from(stripped)
                         } else {
                             escape(p)
                         }
@@ -56,7 +56,7 @@ impl PatternMatcher for HashMap<String, RegexSet> {
         let line = if column_codepoint < line.len() {
             &line[..column_codepoint]
         } else {
-            &line[..]
+            line
         };
         match self.get(filetype) {
             None => false,

@@ -18,7 +18,7 @@ use tokio::sync::mpsc;
 
 use super::server::{Options, ServerState};
 use super::ycmd_types;
-const HMAC_HEADER: &'static str = "x-ycm-hmac";
+const HMAC_HEADER: &str = "x-ycm-hmac";
 
 fn hmac_filter(
     key: Arc<hmac::Key>,
@@ -153,7 +153,7 @@ pub fn get_routes(
 
     let receive_messages = warp::filters::method::post()
         .and(warp::path("receive_messages"))
-        .and(state_filter.clone())
+        .and(state_filter)
         .and(hmac_filter_json_body(hmac_secret.clone()))
         .and_then(
             |state: Arc<ServerState>, request: ycmd_types::SimpleRequest| async move {
@@ -232,10 +232,13 @@ async fn rejection_handler(r: Rejection) -> Result<impl Reply, Infallible> {
     if r.is_not_found() {
         code = StatusCode::NOT_FOUND;
         message = "NOT_FOUND";
-    } else if let Some(_) = r.find::<warp::filters::body::BodyDeserializeError>() {
+    } else if r
+        .find::<warp::filters::body::BodyDeserializeError>()
+        .is_some()
+    {
         code = StatusCode::BAD_REQUEST;
         message = "BAD_REQUEST";
-    } else if let Some(_) = r.find::<warp::reject::MethodNotAllowed>() {
+    } else if r.find::<warp::reject::MethodNotAllowed>().is_some() {
         code = StatusCode::METHOD_NOT_ALLOWED;
         message = "METHOD_NOT_ALLOWED";
     } else {

@@ -32,7 +32,7 @@ impl ServerState {
         Self {
             generic_completers: Mutex::new(GenericCompleters {
                 completers: vec![],
-                config: config.clone(),
+                config,
             }),
         }
     }
