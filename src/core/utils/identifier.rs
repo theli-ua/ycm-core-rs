@@ -116,7 +116,80 @@ static ref FILETYPE_TO_COMMENT_AND_STRING_REGEX: HashMap<&'static str, RE> = {
 //       (The latter two come from \W which is the negation of \w)
 //   - Followed by any alphanumeric or _ characters
 static ref DEFAULT_IDENTIFIER_REGEX: Regex = Regex::new(r"[^\W\d]\w*").unwrap();
+// Spec:
+// http://www.ecma-international.org/ecma-262/6.0/#sec-names-and-keywords
+// Default identifier plus the dollar sign.
+static ref JS_IDENTIFIER_REGEX: Regex= Regex::new( r"(?:[^\W\d]|\$)[\w$]*").unwrap();
+// Spec: https://www.w3.org/TR/css-syntax-3/#ident-token-diagram
+static ref CSS_IDENTIFIER_REGEX: Regex = Regex::new( r"-?[^\W\d][\w-]*").unwrap();
 
+// Spec: http://www.w3.org/TR/html5/syntax.html#tag-name-state
+// But not quite since not everything we want to pull out is a tag name. We
+// also want attribute names (and probably unquoted attribute values).
+// And we also want to ignore common template chars like `}` and `{`.
+static ref HTML_IDENTIFIER_REGEX: Regex = Regex::new( r#"[a-zA-Z][^\s/>='\\"}{\.]*"#).unwrap();
+
+// Spec: http://cran.r-project.org/doc/manuals/r-release/R-lang.pdf
+// Section 10.3.2.
+// Can be any sequence of '.', '_' and alphanum BUT can't start with:
+//   - '.' followed by digit
+//   - digit
+//   - '_'
+static ref R_IDENTIFIER_REGEX: Regex = Regex::new( r"(?:\.\d|\d|_)?(?P<id>[\.\w]*)").unwrap();
+
+// Spec: http://clojure.org/reader
+// Section: Symbols
+static ref CLOJURE_IDENTIFIER_REGEX: Regex =  Regex::new(
+     r"[-\*\+!_\?:\.a-zA-Z][-\*\+!_\?:\.\w]*/?[-\*\+!_\?:\.\w]*").unwrap();
+
+// Spec: http://www.haskell.org/onlinereport/lexemes.html
+// Section 2.4
+static ref HASKELL_IDENTIFIER_REGEX: Regex = Regex::new( r"[_a-zA-Z][\w']+").unwrap();
+
+// Spec: ?
+// Colons are often used in labels (e.g. \label{fig:foobar}) so we accept
+// them in the middle of an identifier but not at its extremities. We also
+// accept dashes for compound words.
+static ref TEX_IDENTIFIER_REFEX: Regex = Regex::new( r"[^\W\d](?:[\w:-]*\w)?").unwrap();
+
+// Spec: http://doc.perl6.org/language/syntax
+static ref PERL6_IDENTIFIER_REGEX: Regex = Regex::new( r"[_a-zA-Z](?:\w|[-'](?:[_a-zA-Z]))*",).unwrap();
+
+
+// https://www.scheme.com/tspl4/grammar.html#grammar:symbols
+static ref SCHEME_IDENTIFIER_REGEX: Regex = Regex::new( r"\+|\-|\.\.\.|(?:->|(?:\\x[0-9A-Fa-f]+;|[!$%&*/:<=>?~^]|[^\W\d]))(?:\\x[0-9A-Fa-f]+;|[-+.@!$%&*/:<=>?~^\w])*").unwrap();
+
+
+static ref FILETYPE_TO_IDENTIFIER_REGEX: HashMap<&'static str, RE> = {
+
+    let mut map = HashMap::new();
+
+    map.insert("javascript", &JS_IDENTIFIER_REGEX as RE);
+    map.insert("typescript", &JS_IDENTIFIER_REGEX as RE);
+
+    map.insert("css", &CSS_IDENTIFIER_REGEX);
+    map.insert("scss", &CSS_IDENTIFIER_REGEX);
+    map.insert("sass", &CSS_IDENTIFIER_REGEX);
+    map.insert("less", &CSS_IDENTIFIER_REGEX);
+
+    map.insert("html", &HTML_IDENTIFIER_REGEX);
+
+    map.insert("r", &R_IDENTIFIER_REGEX);
+
+    map.insert("clojure", &CLOJURE_IDENTIFIER_REGEX);
+    map.insert("elisp", &CLOJURE_IDENTIFIER_REGEX);
+    map.insert("lisp", &CLOJURE_IDENTIFIER_REGEX);
+
+    map.insert("haskell", &HASKELL_IDENTIFIER_REGEX);
+
+    map.insert("tex", &TEX_IDENTIFIER_REFEX);
+
+    map.insert("perl6", &PERL6_IDENTIFIER_REGEX);
+
+    map.insert("scheme", &SCHEME_IDENTIFIER_REGEX);
+
+    map
+};
 }
 
 fn get_comments_and_strings_re_for_ftype(filetype: Option<&str>) -> RE {
@@ -125,6 +198,15 @@ fn get_comments_and_strings_re_for_ftype(filetype: Option<&str>) -> RE {
         Some(t) => *FILETYPE_TO_COMMENT_AND_STRING_REGEX
             .get(t)
             .unwrap_or(&(&DEFAULT_COMMENT_AND_STRING_REGEX as RE)),
+    }
+}
+
+fn get_identifier_re_for_ftype(filetype: Option<&str>) -> RE {
+    match filetype {
+        None => &DEFAULT_IDENTIFIER_REGEX,
+        Some(t) => *FILETYPE_TO_IDENTIFIER_REGEX
+            .get(t)
+            .unwrap_or(&(&DEFAULT_IDENTIFIER_REGEX as RE)),
     }
 }
 
@@ -163,6 +245,24 @@ pub fn remove_identifier_free_text(text: &str, filetype: Option<&str>) -> String
         .to_string()
 }
 
+pub fn is_identifier(text: &str, filetype: Option<&str>) -> bool {
+    if text.is_empty() {
+        return false;
+    }
+
+    let re = get_identifier_re_for_ftype(filetype);
+    if let Some(c) = re.captures(text) {
+        dbg!(&c);
+        if c.len() == 1 {
+            c.get(0).unwrap().range() == (0..text.len())
+        } else {
+            c.name("id").unwrap().range() == (0..text.len())
+        }
+    } else {
+        false
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -190,5 +290,226 @@ mod tests {
         );
     }
 
-    //TODO: port remained of freetext tests
+    #[test]
+    fn is_identifier_generic() {
+        assert!(is_identifier("foo", None));
+        assert!(is_identifier("foo129", None));
+        assert!(is_identifier("f12", None));
+        assert!(is_identifier("f12", None));
+
+        assert!(is_identifier("_foo", None));
+        assert!(is_identifier("_foo129", None));
+        assert!(is_identifier("_f12", None));
+        assert!(is_identifier("_f12", None));
+
+        assert!(is_identifier("uniçode", None));
+        assert!(is_identifier("uç", None));
+        assert!(is_identifier("ç", None));
+        assert!(is_identifier("çode", None));
+
+        assert!(!is_identifier("1foo129", None));
+        assert!(!is_identifier("-foo", None));
+        assert!(!is_identifier("foo-", None));
+        assert!(!is_identifier("font-face", None));
+        assert!(!is_identifier("", None));
+    }
+
+    #[test]
+    fn is_identifier_js() {
+        assert!(is_identifier("_føo1", Some("javascript")));
+        assert!(is_identifier("fø_o1", Some("javascript")));
+        assert!(is_identifier("$føo1", Some("javascript")));
+        assert!(is_identifier("fø$o1", Some("javascript")));
+
+        assert!(!is_identifier("1føo", Some("javascript")));
+    }
+
+    #[test]
+    fn is_identifier_ts() {
+        assert!(is_identifier("_føo1", Some("typescript")));
+        assert!(is_identifier("fø_o1", Some("typescript")));
+        assert!(is_identifier("$føo1", Some("typescript")));
+        assert!(is_identifier("fø$o1", Some("typescript")));
+
+        assert!(!is_identifier("1føo", Some("typescript")));
+    }
+
+    #[test]
+    fn is_identifier_css() {
+        assert!(is_identifier("foo", Some("css")));
+        assert!(is_identifier("a", Some("css")));
+        assert!(is_identifier("a1", Some("css")));
+        assert!(is_identifier("a-", Some("css")));
+        assert!(is_identifier("a-b", Some("css")));
+        assert!(is_identifier("_b", Some("css")));
+        assert!(is_identifier("-ms-foo", Some("css")));
+        assert!(is_identifier("-_o", Some("css")));
+        assert!(is_identifier("font-face", Some("css")));
+        assert!(is_identifier("αβγ", Some("css")));
+
+        assert!(!is_identifier("-3b", Some("css")));
+        assert!(!is_identifier("-3", Some("css")));
+        assert!(!is_identifier("--", Some("css")));
+        assert!(!is_identifier("3", Some("css")));
+        assert!(!is_identifier("€", Some("css")));
+        assert!(!is_identifier("", Some("css")));
+    }
+
+    #[test]
+    fn is_identifier_r() {
+        assert!(is_identifier("a", Some("r")));
+        assert!(is_identifier("a.b", Some("r")));
+        assert!(is_identifier("a.b.c", Some("r")));
+        assert!(is_identifier("a_b", Some("r")));
+        assert!(is_identifier("a1", Some("r")));
+        assert!(is_identifier("a_1", Some("r")));
+        assert!(is_identifier(".a", Some("r")));
+        assert!(is_identifier(".a_b", Some("r")));
+        assert!(is_identifier(".a1", Some("r")));
+        assert!(is_identifier("...", Some("r")));
+        assert!(is_identifier("..1", Some("r")));
+
+        assert!(!is_identifier(".1a", Some("r")));
+        assert!(!is_identifier(".1", Some("r")));
+        assert!(!is_identifier("1a", Some("r")));
+        assert!(!is_identifier("123", Some("r")));
+        assert!(!is_identifier("_1a", Some("r")));
+        assert!(!is_identifier("_a", Some("r")));
+        assert!(!is_identifier("", Some("r")));
+    }
+
+    #[test]
+    fn is_identifier_clojure() {
+        assert!(is_identifier("foo", Some("clojure")));
+        assert!(is_identifier("f9", Some("clojure")));
+        assert!(is_identifier("a.b.c", Some("clojure")));
+        assert!(is_identifier("a.c", Some("clojure")));
+        assert!(is_identifier("a/c", Some("clojure")));
+        assert!(is_identifier("*", Some("clojure")));
+        assert!(is_identifier("a*b", Some("clojure")));
+        assert!(is_identifier("?", Some("clojure")));
+        assert!(is_identifier("a?b", Some("clojure")));
+        assert!(is_identifier(":", Some("clojure")));
+        assert!(is_identifier("a:b", Some("clojure")));
+        assert!(is_identifier("+", Some("clojure")));
+        assert!(is_identifier("a+b", Some("clojure")));
+        assert!(is_identifier("-", Some("clojure")));
+        assert!(is_identifier("a-b", Some("clojure")));
+        assert!(is_identifier("!", Some("clojure")));
+        assert!(is_identifier("a!b", Some("clojure")));
+
+        assert!(!is_identifier("9f", Some("clojure")));
+        assert!(!is_identifier("9", Some("clojure")));
+        assert!(!is_identifier("a/b/c", Some("clojure")));
+        assert!(!is_identifier("(a)", Some("clojure")));
+        assert!(!is_identifier("", Some("clojure")));
+    }
+
+    #[test]
+    fn is_identifier_elisp() {
+        // elisp is using the clojure regexes, so we're testing this more lightly
+        assert!(is_identifier("foo", Some("elisp")));
+        assert!(is_identifier("f9", Some("elisp")));
+        assert!(is_identifier("a.b.c", Some("elisp")));
+        assert!(is_identifier("a/c", Some("elisp")));
+
+        assert!(!is_identifier("9f", Some("elisp")));
+        assert!(!is_identifier("9", Some("elisp")));
+        assert!(!is_identifier("a/b/c", Some("elisp")));
+        assert!(!is_identifier("(a)", Some("elisp")));
+        assert!(!is_identifier("", Some("elisp")));
+    }
+
+    #[test]
+    fn is_identifier_haskell() {
+        assert!(is_identifier("foo", Some("haskell")));
+        assert!(is_identifier("foo'", Some("haskell")));
+        assert!(is_identifier("x'", Some("haskell")));
+        assert!(is_identifier("_x'", Some("haskell")));
+        assert!(is_identifier("_x", Some("haskell")));
+        assert!(is_identifier("x9", Some("haskell")));
+
+        assert!(!is_identifier("'x", Some("haskell")));
+        assert!(!is_identifier("9x", Some("haskell")));
+        assert!(!is_identifier("9", Some("haskell")));
+        assert!(!is_identifier("", Some("haskell")));
+    }
+
+    #[test]
+    fn is_identifier_tex() {
+        assert!(is_identifier("foo", Some("tex")));
+        assert!(is_identifier("fig:foo", Some("tex")));
+        assert!(is_identifier("fig:foo-bar", Some("tex")));
+        assert!(is_identifier("sec:summary", Some("tex")));
+        assert!(is_identifier("eq:bar_foo", Some("tex")));
+        assert!(is_identifier("fōo", Some("tex")));
+        assert!(is_identifier("some8", Some("tex")));
+
+        assert!(!is_identifier("\\section", Some("tex")));
+        assert!(!is_identifier("foo:", Some("tex")));
+        assert!(!is_identifier("-bar", Some("tex")));
+        assert!(!is_identifier("", Some("tex")));
+    }
+
+    #[test]
+    fn is_identifier_perl() {
+        assert!(is_identifier("foo", Some("perl6")));
+        assert!(is_identifier("f-o", Some("perl6")));
+        assert!(is_identifier("x'y", Some("perl6")));
+        assert!(is_identifier("_x-y", Some("perl6")));
+        assert!(is_identifier("x-y'a", Some("perl6")));
+        assert!(is_identifier("x-_", Some("perl6")));
+        assert!(is_identifier("x-_7", Some("perl6")));
+        assert!(is_identifier("_x", Some("perl6")));
+        assert!(is_identifier("x9", Some("perl6")));
+
+        assert!(!is_identifier("'x", Some("perl6")));
+        assert!(!is_identifier("x'", Some("perl6")));
+        assert!(!is_identifier("-x", Some("perl6")));
+        assert!(!is_identifier("x-", Some("perl6")));
+        assert!(!is_identifier("x-1", Some("perl6")));
+        assert!(!is_identifier("x--", Some("perl6")));
+        assert!(!is_identifier("x--a", Some("perl6")));
+        assert!(!is_identifier("x-'", Some("perl6")));
+        assert!(!is_identifier("x-'a", Some("perl6")));
+        assert!(!is_identifier("x-a-", Some("perl6")));
+        assert!(!is_identifier("x+", Some("perl6")));
+        assert!(!is_identifier("9x", Some("perl6")));
+        assert!(!is_identifier("9", Some("perl6")));
+        assert!(!is_identifier("", Some("perl6")));
+    }
+
+    #[test]
+    fn is_identifier_scheme() {
+        assert!(is_identifier("λ", Some("scheme")));
+        assert!(is_identifier("_", Some("scheme")));
+        assert!(is_identifier("+", Some("scheme")));
+        assert!(is_identifier("-", Some("scheme")));
+        assert!(is_identifier("...", Some("scheme")));
+        assert!(is_identifier(r"\x01;", Some("scheme")));
+        assert!(is_identifier(r"h\x65;lle", Some("scheme")));
+        assert!(is_identifier("foo", Some("scheme")));
+        assert!(is_identifier("foo+-*/1-1", Some("scheme")));
+        assert!(is_identifier("call/cc", Some("scheme")));
+
+        assert!(!is_identifier(".", Some("scheme")));
+        assert!(!is_identifier("..", Some("scheme")));
+        assert!(!is_identifier("--", Some("scheme")));
+        assert!(!is_identifier("++", Some("scheme")));
+        assert!(!is_identifier("+1", Some("scheme")));
+        assert!(!is_identifier("-1", Some("scheme")));
+        assert!(!is_identifier("-abc", Some("scheme")));
+        assert!(!is_identifier("-<abc", Some("scheme")));
+        assert!(!is_identifier("@", Some("scheme")));
+        assert!(!is_identifier("@a", Some("scheme")));
+        assert!(!is_identifier("-@a", Some("scheme")));
+        assert!(!is_identifier("-12a", Some("scheme")));
+        assert!(!is_identifier("12a", Some("scheme")));
+        assert!(!is_identifier("\\", Some("scheme")));
+        assert!(!is_identifier(r"\x", Some("scheme")));
+        assert!(!is_identifier(r"\x123", Some("scheme")));
+        assert!(!is_identifier(r"aa\x123;cc\x", Some("scheme")));
+    }
+
+    //TODO: port all other tests
 }
