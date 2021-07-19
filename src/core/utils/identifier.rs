@@ -252,7 +252,6 @@ pub fn is_identifier(text: &str, filetype: Option<&str>) -> bool {
 
     let re = get_identifier_re_for_ftype(filetype);
     if let Some(c) = re.captures(text) {
-        dbg!(&c);
         if c.len() == 1 {
             c.get(0).unwrap().range() == (0..text.len())
         } else {
@@ -261,6 +260,25 @@ pub fn is_identifier(text: &str, filetype: Option<&str>) -> bool {
     } else {
         false
     }
+}
+
+// index is 0-based and EXCLUSIVE, so ("foo.", 3) -> 0
+// Returns the index on bad input.
+pub fn start_of_longest_identifier_ending_at_index(
+    text: &str,
+    index: usize,
+    filetype: Option<&str>,
+) -> usize {
+    if text.len() < index {
+        return index;
+    }
+
+    for i in 0..index {
+        if is_identifier(&text[i..index], filetype) {
+            return i;
+        }
+    }
+    index
 }
 
 #[cfg(test)]
@@ -509,6 +527,64 @@ mod tests {
         assert!(!is_identifier(r"\x", Some("scheme")));
         assert!(!is_identifier(r"\x123", Some("scheme")));
         assert!(!is_identifier(r"aa\x123;cc\x", Some("scheme")));
+    }
+
+    #[test]
+    fn start_of_longest_identifier_ending_at_index_simple() {
+        assert_eq!(
+            0,
+            start_of_longest_identifier_ending_at_index("foo", 3, None)
+        );
+        assert_eq!(
+            0,
+            start_of_longest_identifier_ending_at_index("f12", 3, None)
+        );
+    }
+    #[test]
+    fn start_of_longest_identifier_ending_at_index_badinput() {
+        assert_eq!(0, start_of_longest_identifier_ending_at_index("", 0, None));
+        assert_eq!(1, start_of_longest_identifier_ending_at_index("", 1, None));
+        assert_eq!(5, start_of_longest_identifier_ending_at_index("", 5, None));
+        assert_eq!(
+            usize::MAX,
+            start_of_longest_identifier_ending_at_index("foo", usize::MAX, None)
+        );
+        assert_eq!(
+            10,
+            start_of_longest_identifier_ending_at_index("foo", 10, None)
+        );
+    }
+
+    #[test]
+    fn start_of_longest_identifier_ending_at_index_punctuation() {
+        assert_eq!(
+            1,
+            start_of_longest_identifier_ending_at_index("(foo", 4, None)
+        );
+        assert_eq!(
+            6,
+            start_of_longest_identifier_ending_at_index("      foo", 9, None)
+        );
+        assert_eq!(
+            4,
+            start_of_longest_identifier_ending_at_index("gar;foo", 7, None)
+        );
+        assert_eq!(
+            2,
+            start_of_longest_identifier_ending_at_index("...", 2, None)
+        );
+    }
+
+    #[test]
+    fn start_of_longest_identifier_ending_at_index_unicode() {
+        assert_eq!(
+            1,
+            start_of_longest_identifier_ending_at_index("(fäö", 4, None)
+        );
+        assert_eq!(
+            2,
+            start_of_longest_identifier_ending_at_index("  fäö", 5, None)
+        );
     }
 
     //TODO: port all other tests
