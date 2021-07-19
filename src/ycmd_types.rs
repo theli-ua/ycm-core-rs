@@ -4,7 +4,9 @@ use std::{collections::HashMap, str::Lines};
 
 use serde::{Deserialize, Serialize};
 
-#[derive(Serialize)]
+use crate::core::utils::identifier::start_of_longest_identifier_ending_at_index;
+
+#[derive(Serialize, Clone, Debug)]
 pub struct Location {
     line_num: usize,
     column_num: usize,
@@ -28,24 +30,24 @@ pub enum Event {
 
 #[derive(Deserialize, Debug)]
 pub struct UltisnipSnippet {
-    trigger: String,
-    description: String,
+    pub trigger: String,
+    pub description: String,
 }
 
 #[derive(Deserialize, Debug)]
 pub struct EventNotification {
-    line_num: usize,
-    column_num: usize,
-    filepath: String,
-    file_data: HashMap<String, FileData>,
-    completer_target: Option<CompleterTarget>,
-    working_dir: Option<String>,
-    extra_conf_data: Option<serde_json::Value>,
-    event_name: Event,
-    ultisnips_snippets: Option<Vec<UltisnipSnippet>>,
+    pub line_num: usize,
+    pub column_num: usize,
+    pub filepath: String,
+    pub file_data: HashMap<String, FileData>,
+    pub completer_target: Option<CompleterTarget>,
+    pub working_dir: Option<String>,
+    pub extra_conf_data: Option<serde_json::Value>,
+    pub event_name: Event,
+    pub ultisnips_snippets: Option<Vec<UltisnipSnippet>>,
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Debug)]
 pub struct SimpleRequest {
     pub line_num: usize,
     pub column_num: usize,
@@ -61,29 +63,49 @@ impl SimpleRequest {
         self.file_data.get(&self.filepath).unwrap().contents.lines()
     }
 
+    pub fn filetypes(&self) -> &[String] {
+        match self.file_data.get(&self.filepath) {
+            Some(f) => &f.filetypes,
+            None => &[],
+        }
+    }
+
+    pub fn first_filetype(&self) -> Option<&str> {
+        self.filetypes().get(0).map(|c| c.as_str())
+    }
+
     pub fn line_value(&self) -> &str {
-        self.lines().nth(self.line_num).unwrap()
+        self.lines().nth(self.line_num - 1).unwrap()
+    }
+
+    // The calculated start column, as a byte offset into the UTF-8 encoded
+    // bytes returned by line_bytes
+    pub fn start_column(&self) -> usize {
+        start_of_longest_identifier_ending_at_index(
+            self.line_value(),
+            self.column_num - 1,
+            self.first_filetype(),
+        )
     }
 
     pub fn query(&self) -> &str {
-        //self[ 'start_codepoint' ] - 1 : self[ 'column_codepoint' ] - 1
-        unimplemented!()
+        &self.line_value()[self.start_column()..self.column_num - 1]
     }
 }
 
-#[derive(Serialize)]
+#[derive(Serialize, Clone, Debug)]
 pub struct Range {
     start: Location,
     end: Location,
 }
 
-#[derive(Serialize)]
+#[derive(Serialize, Clone, Debug)]
 pub struct FixitChunk {
     replacement_string: String,
     range: Range,
 }
 
-#[derive(Serialize)]
+#[derive(Serialize, Clone, Debug)]
 pub struct Fixit {
     text: String,
     location: Location,
@@ -92,20 +114,25 @@ pub struct Fixit {
     chunks: Vec<FixitChunk>,
 }
 
-#[derive(Serialize)]
+#[derive(Serialize, Clone, Debug)]
 pub struct CandidateExtraData {
     doc_string: String,
     fixits: Vec<Fixit>,
     resolve: Option<usize>,
 }
 
-#[derive(Serialize)]
+#[derive(Serialize, Clone, Debug)]
 pub struct Candidate {
     pub insertion_text: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub menu_text: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub extra_menu_info: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub detailed_info: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub kind: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub extra_data: Option<CandidateExtraData>,
 }
 

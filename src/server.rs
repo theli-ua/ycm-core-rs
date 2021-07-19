@@ -2,7 +2,9 @@ use std::{collections::HashMap, time::Duration};
 
 use std::sync::Mutex;
 
-use crate::completer::{Completer, CompletionConfig, GenericCompleters};
+use crate::completer::{
+    ultisnips::UltisnipsCompleter, Completer, CompletionConfig, GenericCompleters,
+};
 
 use super::ycmd_types::*;
 
@@ -31,7 +33,7 @@ impl ServerState {
         };
         Self {
             generic_completers: Mutex::new(GenericCompleters {
-                completers: vec![],
+                completers: vec![Box::new(UltisnipsCompleter::new(config.clone()))],
                 config,
             }),
         }
@@ -53,7 +55,7 @@ impl ServerState {
             .compute_candidates(&request);
         CompletionResponse {
             completions: candidates,
-            completion_start_column: request.column_num,
+            completion_start_column: request.start_column(),
             errors: vec![],
         }
     }
@@ -92,7 +94,8 @@ impl ServerState {
         Available::NO
     }
 
-    pub fn event_notification(&self, _request: EventNotification) -> Vec<DiagnosticData> {
+    pub fn event_notification(&self, request: EventNotification) -> Vec<DiagnosticData> {
+        self.generic_completers.lock().unwrap().on_event(&request);
         Vec::new()
     }
 

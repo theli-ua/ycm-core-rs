@@ -3,6 +3,10 @@ use std::collections::HashMap;
 use regex::RegexSet;
 
 pub mod trigger;
+pub mod ultisnips;
+
+use crate::core::query::filter_and_sort_generic_candidates;
+
 use super::ycmd_types::{Candidate, EventNotification, SimpleRequest};
 use trigger::PatternMatcher;
 
@@ -64,7 +68,7 @@ pub trait Completer: CompleterInner {
     fn compute_candidates(&self, request: &SimpleRequest) -> Vec<Candidate> {
         // Here be cache and some other stuff
         let candidates = self.compute_candidates_inner(request);
-        crate::core::query::filter_and_sort_generic_candidates(
+        filter_and_sort_generic_candidates(
             candidates,
             request.query(),
             self.get_settings().max_candidates,

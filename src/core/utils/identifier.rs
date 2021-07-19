@@ -264,17 +264,18 @@ pub fn is_identifier(text: &str, filetype: Option<&str>) -> bool {
 
 // index is 0-based and EXCLUSIVE, so ("foo.", 3) -> 0
 // Returns the index on bad input.
+// Note: its different from python ycmd as its both expects and returns byte position
 pub fn start_of_longest_identifier_ending_at_index(
     text: &str,
     index: usize,
     filetype: Option<&str>,
 ) -> usize {
-    if text.len() < index {
+    if text.len() < index || !text.is_char_boundary(index) {
         return index;
     }
 
     for i in 0..index {
-        if is_identifier(&text[i..index], filetype) {
+        if text.is_char_boundary(i) && is_identifier(&text[i..index], filetype) {
             return i;
         }
     }
@@ -580,6 +581,10 @@ mod tests {
         assert_eq!(
             1,
             start_of_longest_identifier_ending_at_index("(fäö", 4, None)
+        );
+        assert_eq!(
+            6,
+            start_of_longest_identifier_ending_at_index("fäö(fäö", 11, None)
         );
         assert_eq!(
             2,
