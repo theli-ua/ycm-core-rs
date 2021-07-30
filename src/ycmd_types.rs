@@ -121,6 +121,13 @@ pub struct CandidateExtraData {
     resolve: Option<usize>,
 }
 
+#[derive(Deserialize, Clone, Debug)]
+pub struct FilterAndSortRequest {
+    pub candidates: Vec<serde_json::Value>,
+    pub sort_property: String,
+    pub query: String,
+}
+
 #[derive(Serialize, Clone, Debug)]
 pub struct Candidate {
     pub insertion_text: String,

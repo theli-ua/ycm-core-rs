@@ -151,6 +151,30 @@ pub fn get_routes(
             },
         );
 
+    let filter_and_sort = warp::filters::method::post()
+        .and(warp::path("filter_and_sort_candidates"))
+        .and(state_filter.clone())
+        .and(hmac_filter_json_body(hmac_secret.clone()))
+        .map(
+            |state: Arc<ServerState>, request: ycmd_types::FilterAndSortRequest| {
+                let max_candidates = state.options.max_num_candidates;
+                let sort_property = request.sort_property.clone();
+                let candidates = crate::core::query::filter_and_sort_generic_candidates(
+                    request.candidates,
+                    &request.query,
+                    max_candidates,
+                    |c| match c {
+                        serde_json::Value::String(s) => &s,
+                        serde_json::Value::Object(o) => {
+                            o.get(&sort_property).unwrap().as_str().unwrap()
+                        }
+                        _ => unimplemented!(),
+                    },
+                );
+                warp::reply::json(&candidates)
+            },
+        );
+
     let receive_messages = warp::filters::method::post()
         .and(warp::path("receive_messages"))
         .and(state_filter)
@@ -183,6 +207,7 @@ pub fn get_routes(
         .or(defined_subcommands)
         .or(semantic_completer_available)
         .or(signature_help_available)
+        .or(filter_and_sort)
         .or(shutdown);
 
     (

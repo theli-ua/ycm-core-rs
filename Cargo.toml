@@ -6,6 +6,7 @@ edition = "2018"
 
 [lib]
 name = "ycm_core"
+
 [[bin]]
 name = "ycmd"
 path = "src/main.rs"

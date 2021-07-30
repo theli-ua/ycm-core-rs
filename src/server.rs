@@ -3,7 +3,8 @@ use std::{collections::HashMap, time::Duration};
 use std::sync::Mutex;
 
 use crate::completer::{
-    ultisnips::UltisnipsCompleter, Completer, CompletionConfig, GenericCompleters,
+    filename::FilenameCompleter, ultisnips::UltisnipsCompleter, Completer, CompletionConfig,
+    GenericCompleters,
 };
 
 use super::ycmd_types::*;
@@ -15,25 +16,38 @@ pub struct Options {
     pub min_num_of_chars_for_completion: usize,
     pub max_num_candidates_to_detail: isize,
     pub max_diagnostics_to_display: usize,
+    pub filepath_blacklist: HashMap<String, String>,
 }
 
 pub struct ServerState {
     generic_completers: Mutex<GenericCompleters>,
+    pub options: Options,
 }
 
 impl ServerState {
-    pub fn new(opt: Options) -> Self {
+    pub fn new(options: Options) -> Self {
         let config = CompletionConfig {
-            min_num_chars: opt.min_num_of_chars_for_completion,
-            max_diagnostics_to_display: opt.max_num_candidates,
+            min_num_chars: options.min_num_of_chars_for_completion,
+            max_diagnostics_to_display: options.max_num_candidates,
             completion_triggers: HashMap::default(),
             signature_triggers: HashMap::default(),
-            max_candidates: opt.max_num_candidates,
-            max_candidates_to_detail: opt.max_num_candidates_to_detail,
+            max_candidates: options.max_num_candidates,
+            max_candidates_to_detail: options.max_num_candidates_to_detail,
         };
+
+        let fname_bl = options
+            .filepath_blacklist
+            .iter()
+            .map(|(k, _v)| (k.clone(), true))
+            .collect();
+
         Self {
+            options,
             generic_completers: Mutex::new(GenericCompleters {
-                completers: vec![Box::new(UltisnipsCompleter::new(config.clone()))],
+                completers: vec![
+                    Box::new(UltisnipsCompleter::new(config.clone())),
+                    Box::new(FilenameCompleter::new(config.clone(), fname_bl)),
+                ],
                 config,
             }),
         }
