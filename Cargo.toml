@@ -17,7 +17,9 @@ debug = true
 
 [dependencies]
 base64 = "0.13"
+dirs = "3.0.2"
 filedescriptor = "0.8.0"
+itertools = "0.10"
 lazy_static = "1.4.0"
 lcs = "0.2.0"
 log = "0.4"
@@ -28,6 +30,7 @@ futures = { version = "0.3", default-features = false, features = ["alloc"] }
 regex = "1.5.4"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
+shellexpand = "2.0"
 smallvec = {version = "1.6.1", features = ["union"] }
 structopt = { version = "0.3" }
 tokio = { version = "1.0", features = ["full"]}
@@ -38,6 +41,7 @@ warp = "0.3.1"
 
 [dev-dependencies]
 criterion = "0.3"
+tempfile = "3.2.0"
 
 [[bench]]
 name = "filter"

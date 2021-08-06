@@ -1,6 +1,6 @@
 #![allow(dead_code)]
 
-use std::{collections::HashMap, str::Lines};
+use std::{collections::HashMap, path::PathBuf, str::Lines};
 
 use serde::{Deserialize, Serialize};
 
@@ -15,8 +15,8 @@ pub struct Location {
 
 #[derive(Deserialize, Debug)]
 pub struct FileData {
-    filetypes: Vec<String>,
-    contents: String,
+    pub filetypes: Vec<String>,
+    pub contents: String,
 }
 
 #[derive(Deserialize, Debug)]
@@ -51,10 +51,10 @@ pub struct EventNotification {
 pub struct SimpleRequest {
     pub line_num: usize,
     pub column_num: usize,
-    pub filepath: String,
-    pub file_data: HashMap<String, FileData>,
+    pub filepath: PathBuf,
+    pub file_data: HashMap<PathBuf, FileData>,
     pub completer_target: Option<CompleterTarget>,
-    pub working_dir: Option<String>,
+    pub working_dir: Option<PathBuf>,
     pub extra_conf_data: Option<serde_json::Value>,
 }
 
@@ -90,6 +90,10 @@ impl SimpleRequest {
 
     pub fn query(&self) -> &str {
         &self.line_value()[self.start_column()..self.column_num - 1]
+    }
+
+    pub fn prefix(&self) -> &str {
+        &self.line_value()[..self.start_column() - 1]
     }
 }
 

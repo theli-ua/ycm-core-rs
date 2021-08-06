@@ -1,3 +1,5 @@
+use std::{borrow::Cow, path::PathBuf};
+
 pub mod identifier;
 
 pub fn byte_off_to_unicode_off(s: &str, byte_off: usize) -> usize {
@@ -5,6 +7,26 @@ pub fn byte_off_to_unicode_off(s: &str, byte_off: usize) -> usize {
         .chars()
         .count()
         + 1
+}
+
+pub fn get_current_dir() -> PathBuf {
+    std::env::current_dir().unwrap_or_else(|_| std::env::temp_dir())
+}
+
+pub fn list_dir(dir: &str) -> Box<dyn Iterator<Item = String>> {
+    match std::fs::read_dir(dir) {
+        Ok(i) => Box::new(
+            i.map(|e| e.ok())
+                .flatten()
+                .map(|e| e.file_name().to_string_lossy().to_string()),
+        ),
+        Err(_) => Box::new(std::iter::empty()),
+    }
+}
+
+// TODO: Windows %VARS%
+pub fn expand_vars(s: &str) -> Cow<'_, str> {
+    shellexpand::full_with_context_no_errors(s, dirs::home_dir, |k| std::env::var(k).ok())
 }
 
 #[cfg(test)]

@@ -17,6 +17,7 @@ pub struct Options {
     pub max_num_candidates_to_detail: isize,
     pub max_diagnostics_to_display: usize,
     pub filepath_blacklist: HashMap<String, String>,
+    pub filepath_completion_use_working_dir: u8,
 }
 
 pub struct ServerState {
@@ -38,15 +39,21 @@ impl ServerState {
         let fname_bl = options
             .filepath_blacklist
             .iter()
-            .map(|(k, _v)| (k.clone(), true))
+            .filter(|(_k, v)| v.as_str().eq("1"))
+            .map(|(k, _v)| k.clone())
             .collect();
+        let filename_use_working_dir = options.filepath_completion_use_working_dir == 1;
 
         Self {
             options,
             generic_completers: Mutex::new(GenericCompleters {
                 completers: vec![
                     Box::new(UltisnipsCompleter::new(config.clone())),
-                    Box::new(FilenameCompleter::new(config.clone(), fname_bl)),
+                    Box::new(FilenameCompleter::new(
+                        config.clone(),
+                        fname_bl,
+                        filename_use_working_dir,
+                    )),
                 ],
                 config,
             }),
