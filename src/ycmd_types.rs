@@ -71,15 +71,16 @@ impl SimpleRequest {
     }
 
     pub fn first_filetype(&self) -> Option<&str> {
-        self.filetypes().get(0).map(|c| c.as_str())
+        self.filetypes().get(0).map(String::as_str)
     }
 
+    /// current line
     pub fn line_value(&self) -> &str {
         self.lines().nth(self.line_num - 1).unwrap()
     }
 
-    // The calculated start column, as a byte offset into the UTF-8 encoded
-    // bytes returned by line_bytes
+    /// The calculated start column, as a byte offset into the UTF-8 encoded
+    /// bytes returned by line_bytes
     pub fn start_column(&self) -> usize {
         start_of_longest_identifier_ending_at_index(
             self.line_value(),
@@ -88,12 +89,21 @@ impl SimpleRequest {
         )
     }
 
+    /// 'query' after the beginning
+    /// of the identifier to be completed
     pub fn query(&self) -> &str {
-        &self.line_value()[self.start_column()..self.column_num - 1]
+        &self.line_value()[self.start_column()..=self.column_num - 2]
     }
 
+    /// line value up to the character
+    /// before the start of 'query'
     pub fn prefix(&self) -> &str {
-        &self.line_value()[..self.start_column() - 1]
+        let start = self.start_column();
+        if start == 0 {
+            ""
+        } else {
+            &self.line_value()[..=self.start_column() - 1]
+        }
     }
 }
 
@@ -277,3 +287,89 @@ pub enum MessagePollResponse {
     Message(Message),
 }
 
+#[cfg(test)]
+mod tests {
+    use std::path::Path;
+
+    use super::*;
+    fn get_simple_request<S: ToString, P: AsRef<Path>>(
+        file_contents: S,
+        filepath: P,
+        line_num: usize,
+        column_num: usize,
+    ) -> SimpleRequest {
+        let mut file_data = std::collections::HashMap::default();
+
+        let filepath = filepath.as_ref().to_path_buf();
+
+        file_data.insert(
+            filepath.clone(),
+            FileData {
+                filetypes: vec![String::from("rust"), String::from("c")],
+                contents: file_contents.to_string(),
+            },
+        );
+        SimpleRequest {
+            line_num,
+            column_num,
+            filepath,
+            file_data,
+            completer_target: None,
+            working_dir: None,
+            extra_conf_data: None,
+        }
+    }
+
+    #[test]
+    fn simple_request_lines() {
+        let request = get_simple_request("a\nb\n\n\nc", "aa", 0, 0);
+        assert_eq!(
+            request.lines().collect::<Vec<_>>(),
+            vec!["a", "b", "", "", "c"]
+        );
+    }
+
+    #[test]
+    fn simple_request_line_value() {
+        let request = get_simple_request("a\nb\n\n\nc", "aa", 2, 0);
+        assert_eq!(request.line_value(), "b");
+    }
+
+    #[test]
+    fn simple_request_filetypes() {
+        let request = get_simple_request("a\nb\n\n\nc", "aa", 2, 0);
+        assert_eq!(
+            request.filetypes(),
+            vec![String::from("rust"), String::from("c")]
+        );
+    }
+
+    #[test]
+    fn simple_request_first_filetype() {
+        let request = get_simple_request("a\nb\n\n\nc", "aa", 2, 0);
+        assert_eq!(request.first_filetype(), Some("rust"));
+    }
+
+    #[test]
+    fn simple_request_start_column() {
+        let request = get_simple_request("12345 78", "aa", 1, 8);
+        assert_eq!(request.start_column(), 7);
+    }
+
+    #[test]
+    fn simple_request_query() {
+        let request = get_simple_request("12345 a8", "aa", 1, 9);
+        assert_eq!(request.query(), "a8");
+        let request = get_simple_request("u", "aa", 1, 2);
+        assert_eq!(request.query(), "u");
+    }
+
+    #[test]
+    fn simple_request_prefix() {
+        let request = get_simple_request("12345 a8", "aa", 1, 9);
+        assert_eq!(request.prefix(), "12345 ");
+
+        let request = get_simple_request("unim", "aa", 1, 5);
+        assert_eq!(request.prefix(), "");
+    }
+}
