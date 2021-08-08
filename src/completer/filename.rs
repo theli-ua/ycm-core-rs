@@ -106,7 +106,7 @@ impl FilenameCompleter {
     ///could be completed on the current line before the cursor and |start_column|
     ///is the column where the completion should start. (None, None) is returned if
     ///no suitable path is found.
-    fn search_path(self, request: &SimpleRequest) -> Option<(PathBuf, usize)> {
+    fn search_path(&self, request: &SimpleRequest) -> Option<(PathBuf, usize)> {
         let current_line = request.prefix();
         let mut matches = PATH_SEPARATORS_REGEX
             .find_iter(current_line)
@@ -190,28 +190,23 @@ impl CompleterInner for FilenameCompleter {
 }
 
 impl Completer for FilenameCompleter {
-    fn should_use_now(
-        &self,
-        _current_line: &str,
-        _start_codepoint: usize,
-        _column_codepoint: usize,
-        filetypes: &[String],
-    ) -> bool {
-        self.current_filetype_completion_disabled(filetypes)
+    fn should_use_now(&self, request: &SimpleRequest) -> bool {
+        !self.current_filetype_completion_disabled(request.filetypes())
+            && self.search_path(request).is_some()
     }
 }
 
 #[cfg(test)]
 mod tests {
     use std::fs::File;
-    use std::io::{self, Write};
+    use std::io::Write;
 
     use crate::ycmd_types::FileData;
 
     use super::*;
     use tempfile::tempdir;
     #[test]
-    fn test_search_path() {
+    fn test_search_path_abs() {
         let completer = FilenameCompleter {
             blacklist: HashSet::default(),
             config: CompletionConfig {
@@ -227,7 +222,7 @@ mod tests {
         let tmp = tempdir().unwrap();
         let file_path = tmp.path().join("candidate.txt");
         let mut file = File::create(file_path).unwrap();
-        writeln!(file, "Brian was here. Briefly.").unwrap();
+        writeln!(file, "_ was here. Briefly.").unwrap();
         core::mem::drop(file);
 
         let mut file_data = std::collections::HashMap::default();
@@ -251,6 +246,60 @@ mod tests {
         };
         assert_eq!(
             Some((tmp.into_path(), column_num - 1)),
+            completer.search_path(&request)
+        );
+    }
+    #[test]
+    fn test_search_path_relative() {
+        let completer = FilenameCompleter {
+            blacklist: HashSet::default(),
+            config: CompletionConfig {
+                min_num_chars: 1,
+                max_diagnostics_to_display: 1,
+                completion_triggers: Default::default(),
+                signature_triggers: Default::default(),
+                max_candidates: 10,
+                max_candidates_to_detail: 1,
+            },
+            use_working_dir: false,
+        };
+        let tmp = tempdir().unwrap();
+        let file_path = tmp.path().join("candidate.txt");
+        let mut file = File::create(file_path.clone()).unwrap();
+        writeln!(file, "_ was here. Briefly.").unwrap();
+        core::mem::drop(file);
+
+        let mut file_data = std::collections::HashMap::default();
+        let file_contents = format!(
+            "123 ../{}/ ",
+            tmp.path().file_name().unwrap().to_string_lossy()
+        );
+        let column_num = file_contents.len() + 1; // on the last space in that line
+        file_data.insert(
+            file_path.clone(),
+            FileData {
+                filetypes: vec![],
+                contents: file_contents,
+            },
+        );
+        let request = SimpleRequest {
+            line_num: 1,
+            column_num,
+            filepath: file_path,
+            file_data,
+            completer_target: None,
+            working_dir: None,
+            extra_conf_data: None,
+        };
+        assert_eq!(
+            Some((
+                PathBuf::from(format!(
+                    "{}/../{}",
+                    tmp.path().display(),
+                    tmp.path().file_name().unwrap().to_string_lossy()
+                )),
+                column_num - 1
+            )),
             completer.search_path(&request)
         );
     }

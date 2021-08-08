@@ -32,36 +32,31 @@ pub trait Completer: CompleterInner {
         &[]
     }
 
-    fn should_use_now(
-        &self,
-        current_line: &str,
-        start_codepoint: usize,
-        column_codepoint: usize,
-        filetypes: &[String],
-    ) -> bool {
+    fn should_use_now(&self, request: &SimpleRequest) -> bool {
+        let filetypes = request.filetypes();
         if filetypes.is_empty() {
             false
         } else {
-            let filetype = filetypes
+            let filetype = request
+                .filetypes()
                 .iter()
                 .find(|f| self.supported_filetypes().contains(f))
                 .or(Some(&filetypes[0]))
                 .unwrap();
             // Here be cache?
-            self.should_use_now_inner(current_line, start_codepoint, column_codepoint, filetype)
+            self.should_use_now_inner(filetype, request)
         }
     }
 
-    fn should_use_now_inner(
-        &self,
-        current_line: &str,
-        start_codepoint: usize,
-        column_codepoint: usize,
-        filetype: &str,
-    ) -> bool {
+    fn should_use_now_inner(&self, filetype: &str, request: &SimpleRequest) -> bool {
         self.get_settings()
             .completion_triggers
-            .matches_for_filetype(filetype, current_line, start_codepoint, column_codepoint)
+            .matches_for_filetype(
+                filetype,
+                request.line_value(),
+                request.start_column(),
+                request.column_num,
+            )
     }
 
     fn on_event(&mut self, _event: &EventNotification) {}

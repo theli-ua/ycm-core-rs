@@ -1,4 +1,7 @@
-use crate::{core::query::filter_and_sort_generic_candidates, ycmd_types::Candidate};
+use crate::{
+    core::query::filter_and_sort_generic_candidates,
+    ycmd_types::{Candidate, SimpleRequest},
+};
 
 use super::{Completer, CompleterInner, CompletionConfig};
 
@@ -48,14 +51,8 @@ impl Completer for UltisnipsCompleter {
         }
     }
 
-    fn should_use_now(
-        &self,
-        _current_line: &str,
-        start_codepoint: usize,
-        column_codepoint: usize,
-        _filetypes: &[String],
-    ) -> bool {
-        self.query_length_above_min_threshold(start_codepoint, column_codepoint)
+    fn should_use_now(&self, request: &SimpleRequest) -> bool {
+        self.query_length_above_min_threshold(request.start_column(), request.column_num)
     }
 
     fn compute_candidates(&self, request: &crate::ycmd_types::SimpleRequest) -> Vec<Candidate> {

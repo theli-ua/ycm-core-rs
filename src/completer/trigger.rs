@@ -36,13 +36,8 @@ pub fn parse_triggers(
 }
 
 pub trait PatternMatcher {
-    fn matches_for_filetype(
-        &self,
-        filetype: &str,
-        line: &str,
-        start_codepoint: usize,
-        column_codepoint: usize,
-    ) -> bool;
+    fn matches_for_filetype(&self, filetype: &str, line: &str, start: usize, column: usize)
+        -> bool;
 }
 
 impl PatternMatcher for HashMap<String, RegexSet> {
@@ -50,11 +45,11 @@ impl PatternMatcher for HashMap<String, RegexSet> {
         &self,
         filetype: &str,
         line: &str,
-        start_codepoint: usize,
-        column_codepoint: usize,
+        start: usize,
+        column: usize,
     ) -> bool {
-        let line = if column_codepoint < line.len() {
-            &line[..column_codepoint]
+        let line = if column < line.len() {
+            &line[..column]
         } else {
             line
         };
@@ -72,7 +67,7 @@ impl PatternMatcher for HashMap<String, RegexSet> {
                             if it doesn't, its tail must match exactly at 'start_codepoint'. Both
                             cases are mutually exclusive hence the following condition.
                         */
-                        if start_codepoint <= m.end() && m.end() <= column_codepoint {
+                        if start <= m.end() && m.end() <= column {
                             return true;
                         }
                     }
