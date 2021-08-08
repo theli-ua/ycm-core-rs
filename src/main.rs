@@ -43,7 +43,7 @@ struct Opt {
 async fn main() {
     let opt = Opt::from_args();
     env_logger::Builder::from_env(
-        env_logger::Env::default().default_filter_or(opt.log.to_string()),
+        env_logger::Env::default().default_filter_or(format!("hyper=error,{}", opt.log.to_string())),
     )
     .init();
     let options: ycm_core::server::Options =
