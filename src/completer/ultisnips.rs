@@ -38,7 +38,7 @@ impl Completer for UltisnipsCompleter {
                         .iter()
                         .map(|s| Candidate {
                             insertion_text: s.trigger.clone(),
-                            extra_menu_info: Some(String::from("<snip> ") + &s.description),
+                            extra_menu_info: Some(format!("<snip> {}", &s.description)),
                             menu_text: None,
                             detailed_info: None,
                             kind: None,
@@ -55,11 +55,11 @@ impl Completer for UltisnipsCompleter {
         self.query_length_above_min_threshold(request.start_column(), request.column_num)
     }
 
-    fn compute_candidates(&self, request: &crate::ycmd_types::SimpleRequest) -> Vec<Candidate> {
+    fn compute_candidates(&self, request: &mut SimpleRequest) -> Vec<Candidate> {
         // Here be cache and some other stuff
         filter_and_sort_generic_candidates(
             self.candidates.clone(),
-            dbg!(request.query()),
+            request.query(),
             self.get_settings().max_candidates,
             |c| &c.insertion_text,
         )

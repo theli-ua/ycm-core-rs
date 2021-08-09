@@ -63,7 +63,7 @@ pub trait Completer: CompleterInner {
 
     fn on_event(&mut self, _event: &EventNotification) {}
 
-    fn compute_candidates(&self, request: &SimpleRequest) -> Vec<Candidate> {
+    fn compute_candidates(&self, request: &mut SimpleRequest) -> Vec<Candidate> {
         // Here be cache and some other stuff
         let candidates = self.compute_candidates_inner(request);
         filter_and_sort_generic_candidates(
@@ -104,7 +104,7 @@ impl CompleterInner for GenericCompleters {
 }
 
 impl Completer for GenericCompleters {
-    fn compute_candidates(&self, request: &SimpleRequest) -> Vec<Candidate> {
+    fn compute_candidates(&self, request: &mut SimpleRequest) -> Vec<Candidate> {
         let candidates = self.fname_completer.compute_candidates(request);
         if !candidates.is_empty() {
             candidates

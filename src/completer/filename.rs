@@ -1,6 +1,6 @@
 use log::debug;
-use regex::{Captures, Regex, RegexBuilder};
-use std::{borrow::Cow, collections::HashSet, ffi::OsStr, path::PathBuf};
+use regex::Regex;
+use std::{collections::HashSet, path::PathBuf};
 
 use crate::{
     core::query::filter_and_sort_generic_candidates,
@@ -108,17 +108,17 @@ impl FilenameCompleter {
     ///is the column where the completion should start. (None, None) is returned if
     ///no suitable path is found.
     fn search_path(&self, request: &SimpleRequest) -> Option<(PathBuf, usize)> {
-        let current_line = dbg!(request.prefix());
+        let current_line = request.prefix();
         let mut matches = PATH_SEPARATORS_REGEX
             .find_iter(current_line)
             .collect::<Vec<_>>();
-        if dbg!(&matches).is_empty() {
+        if matches.is_empty() {
             return None;
         }
         let working_dir = self.working_directory(&request.working_dir, &request.filepath);
 
         let head_regex = self.get_dir_head_regex(working_dir.to_str().unwrap());
-        let last_match = matches.pop().unwrap();
+        let last_match = dbg!(matches.pop().unwrap());
         let last_match_start = last_match.start();
         let matches_n = matches.len();
         // Go through all path separators from left to right.
@@ -140,7 +140,7 @@ impl FilenameCompleter {
                 };
 
                 if path.exists() {
-                    return Some((path, last_match_start + 2));
+                    return Some((path, last_match_start + 1));
                 }
             } else {
                 // Otherwise, the path may start with "/" (or "\" on Windows). Extract the
@@ -150,14 +150,14 @@ impl FilenameCompleter {
                 // return it and the column just after the latest path separator as the
                 // starting column.
                 let path = &current_line[m.start()..last_match_start];
-                if !dbg!(path)
+                if !path
                     .trim_matches(|c| PATH_SEPARATORS.contains(c))
                     .is_empty()
                 {
-                    let path = dbg!(utils::expand_vars(path));
+                    let path = utils::expand_vars(path);
                     let path = std::path::Path::new(&*path);
                     if path.exists() {
-                        return Some((path.to_owned(), last_match_start + 2));
+                        return Some((path.to_owned(), last_match_start + 1));
                     }
                 }
             }
@@ -173,7 +173,7 @@ impl FilenameCompleter {
         if matches_n == 1 {
             return Some((
                 std::path::PathBuf::from(&String::from(std::path::MAIN_SEPARATOR)),
-                last_match_start + 2,
+                last_match_start + 1,
             ));
         }
         None
@@ -233,11 +233,12 @@ impl Completer for FilenameCompleter {
         }
     }
 
-    fn compute_candidates(&self, request: &SimpleRequest) -> Vec<Candidate> {
+    fn compute_candidates(&self, request: &mut SimpleRequest) -> Vec<Candidate> {
         if !self.should_use_now(request) {
             vec![]
-        } else if let Some((dir, _start)) = self.search_path(request) {
-            let candidates = dbg!(self.generate_path_candidates(dir));
+        } else if let Some((dir, start)) = self.search_path(request) {
+            request.start_column = Some(start);
+            let candidates = self.generate_path_candidates(dir);
             debug!("Path completion candidates: {:?}", candidates);
             filter_and_sort_generic_candidates(
                 candidates,
@@ -298,12 +299,14 @@ mod tests {
             completer_target: None,
             working_dir: None,
             extra_conf_data: None,
+            start_column: None,
         };
         assert_eq!(
-            Some((tmp.into_path(), column_num - 1)),
+            Some((tmp.into_path(), column_num - 2)),
             completer.search_path(&request)
         );
     }
+
     #[test]
     fn test_search_path_relative() {
         let completer = FilenameCompleter {
@@ -345,6 +348,7 @@ mod tests {
             completer_target: None,
             working_dir: None,
             extra_conf_data: None,
+            start_column: None,
         };
         assert_eq!(
             Some((
@@ -353,7 +357,7 @@ mod tests {
                     tmp.path().display(),
                     tmp.path().file_name().unwrap().to_string_lossy()
                 )),
-                column_num - 1
+                column_num - 2
             )),
             completer.search_path(&request)
         );

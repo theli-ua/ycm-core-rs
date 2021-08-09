@@ -58,6 +58,9 @@ pub struct SimpleRequest {
     pub completer_target: Option<CompleterTarget>,
     pub working_dir: Option<PathBuf>,
     pub extra_conf_data: Option<serde_json::Value>,
+    /// Override that can be set by completer. Although this is a bit ugly
+    #[serde(skip)]
+    pub start_column: Option<usize>,
 }
 
 impl SimpleRequest {
@@ -84,17 +87,19 @@ impl SimpleRequest {
     /// The calculated start column, as a byte offset into the UTF-8 encoded
     /// bytes returned by line_bytes
     pub fn start_column(&self) -> usize {
-        start_of_longest_identifier_ending_at_index(
-            self.line_value(),
-            self.column_num - 1,
-            self.first_filetype(),
-        )
+        self.start_column.unwrap_or_else(|| {
+            start_of_longest_identifier_ending_at_index(
+                self.line_value(),
+                self.column_num - 1,
+                self.first_filetype(),
+            )
+        })
     }
 
     /// 'query' after the beginning
     /// of the identifier to be completed
     pub fn query(&self) -> &str {
-        &self.line_value()[self.start_column()..=self.column_num - 2]
+        &dbg!(self.line_value())[dbg!(self.start_column())..=dbg!(self.column_num - 2)]
     }
 
     /// line value up to the character
@@ -319,6 +324,7 @@ mod tests {
             completer_target: None,
             working_dir: None,
             extra_conf_data: None,
+            start_column: None,
         }
     }
 

@@ -66,12 +66,12 @@ impl ServerState {
         true
     }
 
-    pub fn completions(&self, request: SimpleRequest) -> CompletionResponse {
+    pub fn completions(&self, mut request: SimpleRequest) -> CompletionResponse {
         let candidates = self
             .generic_completers
             .lock()
             .unwrap()
-            .compute_candidates(&request);
+            .compute_candidates(&mut request);
         CompletionResponse {
             completions: candidates,
             completion_start_column: request.start_column() + 1,
