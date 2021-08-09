@@ -8,6 +8,8 @@ pub mod ultisnips;
 
 use crate::core::query::filter_and_sort_generic_candidates;
 
+use filename::FilenameCompleter;
+
 use super::ycmd_types::{Candidate, EventNotification, SimpleRequest};
 use trigger::PatternMatcher;
 
@@ -87,6 +89,7 @@ pub trait Completer: CompleterInner {
 
 pub struct GenericCompleters {
     pub completers: Vec<Box<dyn Completer + Send>>,
+    pub fname_completer: FilenameCompleter,
     pub config: CompletionConfig,
 }
 
@@ -102,11 +105,16 @@ impl CompleterInner for GenericCompleters {
 
 impl Completer for GenericCompleters {
     fn compute_candidates(&self, request: &SimpleRequest) -> Vec<Candidate> {
-        self.completers
-            .iter()
-            .map(|c| c.compute_candidates(request))
-            .flatten()
-            .collect()
+        let candidates = self.fname_completer.compute_candidates(request);
+        if !candidates.is_empty() {
+            candidates
+        } else {
+            self.completers
+                .iter()
+                .map(|c| c.compute_candidates(request))
+                .flatten()
+                .collect()
+        }
     }
 
     fn on_event(&mut self, event: &EventNotification) {

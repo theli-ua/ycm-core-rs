@@ -275,7 +275,7 @@ pub fn start_of_longest_identifier_ending_at_index(
     }
 
     for i in 0..index {
-        if text.is_char_boundary(i) && is_identifier(&text[i..index], filetype) {
+        if text.is_char_boundary(i) && is_identifier(&text[i..=index - 1], filetype) {
             return i;
         }
     }

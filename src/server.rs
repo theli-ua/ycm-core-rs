@@ -47,14 +47,12 @@ impl ServerState {
         Self {
             options,
             generic_completers: Mutex::new(GenericCompleters {
-                completers: vec![
-                    Box::new(UltisnipsCompleter::new(config.clone())),
-                    Box::new(FilenameCompleter::new(
-                        config.clone(),
-                        fname_bl,
-                        filename_use_working_dir,
-                    )),
-                ],
+                completers: vec![Box::new(UltisnipsCompleter::new(config.clone()))],
+                fname_completer: FilenameCompleter::new(
+                    config.clone(),
+                    fname_bl,
+                    filename_use_working_dir,
+                ),
                 config,
             }),
         }
@@ -76,7 +74,7 @@ impl ServerState {
             .compute_candidates(&request);
         CompletionResponse {
             completions: candidates,
-            completion_start_column: request.start_column(),
+            completion_start_column: request.start_column() + 1,
             errors: vec![],
         }
     }

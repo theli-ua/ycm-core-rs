@@ -38,8 +38,8 @@ impl Completer for UltisnipsCompleter {
                         .iter()
                         .map(|s| Candidate {
                             insertion_text: s.trigger.clone(),
-                            menu_text: Some(String::from("<snip> ") + &s.description),
-                            extra_menu_info: None,
+                            extra_menu_info: Some(String::from("<snip> ") + &s.description),
+                            menu_text: None,
                             detailed_info: None,
                             kind: None,
                             extra_data: None,
@@ -59,7 +59,7 @@ impl Completer for UltisnipsCompleter {
         // Here be cache and some other stuff
         filter_and_sort_generic_candidates(
             self.candidates.clone(),
-            request.query(),
+            dbg!(request.query()),
             self.get_settings().max_candidates,
             |c| &c.insertion_text,
         )

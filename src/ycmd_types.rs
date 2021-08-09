@@ -49,7 +49,9 @@ pub struct EventNotification {
 
 #[derive(Deserialize, Debug)]
 pub struct SimpleRequest {
+    /// 1-based line number
     pub line_num: usize,
+    /// 1-based byte offset
     pub column_num: usize,
     pub filepath: PathBuf,
     pub file_data: HashMap<PathBuf, FileData>,
@@ -352,8 +354,11 @@ mod tests {
 
     #[test]
     fn simple_request_start_column() {
-        let request = get_simple_request("12345 78", "aa", 1, 8);
-        assert_eq!(request.start_column(), 7);
+        let request = get_simple_request("12345 a8", "aa", 1, 9);
+        assert_eq!(request.start_column(), 6);
+
+        let request = get_simple_request("u", "aa", 1, 2);
+        assert_eq!(request.start_column(), 0);
     }
 
     #[test]

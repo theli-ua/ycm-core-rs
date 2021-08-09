@@ -1,3 +1,4 @@
+use log::debug;
 use regex::{Captures, Regex, RegexBuilder};
 use std::{borrow::Cow, collections::HashSet, ffi::OsStr, path::PathBuf};
 
@@ -107,11 +108,11 @@ impl FilenameCompleter {
     ///is the column where the completion should start. (None, None) is returned if
     ///no suitable path is found.
     fn search_path(&self, request: &SimpleRequest) -> Option<(PathBuf, usize)> {
-        let current_line = request.prefix();
+        let current_line = dbg!(request.prefix());
         let mut matches = PATH_SEPARATORS_REGEX
             .find_iter(current_line)
             .collect::<Vec<_>>();
-        if matches.is_empty() {
+        if dbg!(&matches).is_empty() {
             return None;
         }
         let working_dir = self.working_directory(&request.working_dir, &request.filepath);
@@ -149,11 +150,11 @@ impl FilenameCompleter {
                 // return it and the column just after the latest path separator as the
                 // starting column.
                 let path = &current_line[m.start()..last_match_start];
-                if !path
+                if !dbg!(path)
                     .trim_matches(|c| PATH_SEPARATORS.contains(c))
                     .is_empty()
                 {
-                    let path = utils::expand_vars(path);
+                    let path = dbg!(utils::expand_vars(path));
                     let path = std::path::Path::new(&*path);
                     if path.exists() {
                         return Some((path.to_owned(), last_match_start + 2));
@@ -177,6 +178,40 @@ impl FilenameCompleter {
         }
         None
     }
+
+    fn generate_path_candidates(&self, dir: PathBuf) -> Vec<Candidate> {
+        match std::fs::read_dir(dir) {
+            Err(_) => vec![],
+            Ok(d) => d
+                .map(|f| f.ok())
+                .flatten()
+                .map(|f| {
+                    let name = f.file_name().to_string_lossy().to_string();
+                    let file_type = match f.file_type() {
+                        Err(_) => FileType::FileAndDir,
+                        Ok(t) => {
+                            if t.is_dir() {
+                                FileType::Dir
+                            } else if t.is_file() {
+                                FileType::File
+                            } else {
+                                FileType::FileAndDir
+                            }
+                        }
+                    }
+                    .to_string();
+                    Candidate {
+                        insertion_text: name,
+                        extra_menu_info: Some(file_type),
+                        menu_text: None,
+                        detailed_info: None,
+                        kind: None,
+                        extra_data: None,
+                    }
+                })
+                .collect(),
+        }
+    }
 }
 
 impl CompleterInner for FilenameCompleter {
@@ -191,8 +226,28 @@ impl CompleterInner for FilenameCompleter {
 
 impl Completer for FilenameCompleter {
     fn should_use_now(&self, request: &SimpleRequest) -> bool {
-        !self.current_filetype_completion_disabled(request.filetypes())
-            && self.search_path(request).is_some()
+        !self.current_filetype_completion_disabled(request.filetypes()) && {
+            let s = self.search_path(request);
+            debug!("search_path: {:?}", s);
+            s.is_some()
+        }
+    }
+
+    fn compute_candidates(&self, request: &SimpleRequest) -> Vec<Candidate> {
+        if !self.should_use_now(request) {
+            vec![]
+        } else if let Some((dir, _start)) = self.search_path(request) {
+            let candidates = dbg!(self.generate_path_candidates(dir));
+            debug!("Path completion candidates: {:?}", candidates);
+            filter_and_sort_generic_candidates(
+                candidates,
+                request.query(),
+                self.get_settings().max_candidates,
+                |c| &c.insertion_text,
+            )
+        } else {
+            vec![]
+        }
     }
 }
 
