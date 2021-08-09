@@ -212,9 +212,7 @@ fn get_identifier_re_for_ftype(filetype: Option<&str>) -> RE {
 
 fn replace_with_empty_lines(caps: &Captures) -> String {
     if caps.len() == 1 {
-        std::iter::repeat("\n")
-            .take(caps[0].lines().count() - 1)
-            .collect()
+        "\n".repeat(caps[0].lines().count() - 1)
     } else {
         let off = caps.get(0).unwrap().start();
         let mut prev = off;
@@ -230,9 +228,7 @@ fn replace_with_empty_lines(caps: &Captures) -> String {
                         .chain(std::iter::repeat("\n").take(c.as_str().lines().count() - 1))
                         .collect()
                 } else {
-                    std::iter::repeat("\n")
-                        .take(c.as_str().lines().count() - 1)
-                        .collect()
+                    "\n".repeat(c.as_str().lines().count() - 1)
                 }
             })
             .collect()

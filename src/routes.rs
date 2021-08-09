@@ -32,8 +32,8 @@ fn hmac_filter(
                 let hmac_secret = key.clone();
                 let hmac_value = base64::decode(&hmac_value).unwrap();
                 let body_hmac = hmac::sign(&hmac_secret, &body);
-                let method_hmac = hmac::sign(&hmac_secret, &method.as_str().as_bytes());
-                let path_hmac = hmac::sign(&hmac_secret, &path.as_str().as_bytes());
+                let method_hmac = hmac::sign(&hmac_secret, method.as_str().as_bytes());
+                let path_hmac = hmac::sign(&hmac_secret, path.as_str().as_bytes());
 
                 let mut ctx = hmac::Context::with_key(&hmac_secret);
                 ctx.update(method_hmac.as_ref());
@@ -164,7 +164,7 @@ pub fn get_routes(
                     &request.query,
                     max_candidates,
                     |c| match c {
-                        serde_json::Value::String(s) => &s,
+                        serde_json::Value::String(s) => s,
                         serde_json::Value::Object(o) => {
                             o.get(&sort_property).unwrap().as_str().unwrap()
                         }

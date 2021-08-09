@@ -182,6 +182,7 @@ pub fn filter_and_sort_candidates<'a, 'b>(
     results
 }
 
+// This impl is a little ugly, need to revisit later
 pub fn filter_and_sort_generic_candidates<T, F>(
     candidates: Vec<T>,
     query: &str,
@@ -195,7 +196,7 @@ where
     let parsed_candidates = candidates
         .iter()
         .enumerate()
-        .map(|(i, c)| (i, Candidate::new(f(&c))))
+        .map(|(i, c)| (i, Candidate::new(f(c))))
         .collect::<Vec<_>>();
 
     let mut results = parsed_candidates
@@ -207,6 +208,7 @@ where
     let max_candidates = max_candidates.min(results.len());
     results.partial_sort(max_candidates, |a, b| a.1.partial_cmp(&b.1).unwrap());
 
+    #[allow(clippy::needless_collect)]
     let results = results
         .into_iter()
         .take(max_candidates)

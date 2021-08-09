@@ -69,11 +69,11 @@ impl<'a> Candidate<'a> {
                         is_prefix = false;
                     }
                 }
-                None => return QueryResult::new(true, is_prefix, match_index_sum, &self, q),
+                None => return QueryResult::new(true, is_prefix, match_index_sum, self, q),
             }
         }
         if last_q.is_none() {
-            return QueryResult::new(true, is_prefix, match_index_sum, &self, q);
+            return QueryResult::new(true, is_prefix, match_index_sum, self, q);
         }
         QueryResult::default()
     }
