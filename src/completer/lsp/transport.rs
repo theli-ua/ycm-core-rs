@@ -203,5 +203,18 @@ mod tests {
             jrpc_types::Call::Notification(notification),
             lsp.read_requests_from_server().await.unwrap()
         );
+
+        // Client notifies server
+        lsp.notify("method".to_string(), jsonrpc_core::Params::None)
+            .await;
+
+        let mut expected_buf = Vec::from(headers_str.as_bytes());
+        expected_buf.extend_from_slice(&notification_bytes[..]);
+
+        let mut buf = Vec::default();
+        buf.resize(expected_buf.len(), 0);
+        server.read_exact(&mut buf).await.unwrap();
+
+        assert_eq!(buf, expected_buf);
     }
 }
