@@ -150,7 +150,7 @@ impl<W: AsyncWrite + Unpin + Send> LspTransport<W> {
         let id = self.response_channels.insert(sender).unwrap();
 
         let request = jrpc_types::Call::MethodCall(jrpc_types::MethodCall {
-            jsonrpc: None,
+            jsonrpc: Some(jrpc_types::Version::V2),
             method,
             params,
             id: jrpc_types::Id::Num(id as u64),
@@ -163,7 +163,7 @@ impl<W: AsyncWrite + Unpin + Send> LspTransport<W> {
     /// Notify server
     pub async fn notify(&mut self, method: String, params: jrpc_types::Params) {
         let request = jrpc_types::Call::Notification(jrpc_types::Notification {
-            jsonrpc: None,
+            jsonrpc: Some(jrpc_types::Version::V2),
             method,
             params,
         });
@@ -175,16 +175,16 @@ impl<W: AsyncWrite + Unpin + Send> LspTransport<W> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use regex::Regex;
 
-    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    #[tokio::test]
     async fn test_notifications() {
-        env_logger::init();
-        let (client, mut server) = tokio::io::duplex(32768);
+        let (client, mut server) = tokio::io::duplex(4096);
         let (client_r, client_w) = tokio::io::split(client);
         let mut lsp = LspTransport::new(client_r, client_w);
 
         let notification = jrpc_types::Notification {
-            jsonrpc: None,
+            jsonrpc: Some(jrpc_types::Version::V2),
             method: "method".to_string(),
             params: jrpc_types::Params::None,
         };
@@ -216,5 +216,82 @@ mod tests {
         server.read_exact(&mut buf).await.unwrap();
 
         assert_eq!(buf, expected_buf);
+    }
+
+    #[tokio::test]
+    async fn test_request_response() {
+        let (client, mut server) = tokio::io::duplex(4096);
+        let (client_r, client_w) = tokio::io::split(client);
+        let mut lsp = LspTransport::new(client_r, client_w);
+
+        let server_task = tokio::spawn(async move {
+            // We're not gonna cheat here and not do line reading
+            let length_re = Regex::new("Content-Length:\\s*([0-9]+)").unwrap();
+
+            let mut buf = BytesMut::with_capacity(4096);
+
+            let content_len: usize = loop {
+                server.read_buf(&mut buf).await.unwrap();
+                let s = dbg!(std::str::from_utf8(&buf[..]).unwrap());
+                if let Some(c) = length_re.captures(s) {
+                    break c.get(1).unwrap().as_str().parse().unwrap();
+                }
+            };
+            // now find {
+            let start_pos = loop {
+                if let Some(p) = buf.iter().position(|b| *b == b'{') {
+                    break p;
+                }
+                server.read_buf(&mut buf).await.unwrap();
+            };
+
+            let _ = buf.split_to(start_pos);
+            while buf.len() < content_len {
+                server.read_buf(&mut buf).await.unwrap();
+            }
+            let call: jrpc_types::MethodCall = serde_json::from_slice(&buf[..content_len]).unwrap();
+            let id = match call.id {
+                jrpc_types::Id::Num(n) => n,
+                _ => panic!("Unexpected ID"),
+            };
+            let expected_call = jrpc_types::MethodCall {
+                jsonrpc: Some(jrpc_types::Version::V2),
+                method: "someMethod/foo".to_string(),
+                params: jrpc_types::Params::None,
+                id: jrpc_types::Id::Num(id),
+            };
+            assert_eq!(call, expected_call);
+
+            let response = jrpc_types::Success {
+                jsonrpc: Some(jrpc_types::Version::V2),
+                id: jrpc_types::Id::Num(id),
+                result: jrpc_types::Value::String(String::from("success")),
+            };
+
+            let bytes = serde_json::to_vec(&response).unwrap();
+
+            let headers = format!("Content-Length: {}\r\n\r\n", bytes.len());
+            server.write_all(headers.as_bytes()).await.unwrap();
+            server.write_all(&bytes).await.unwrap();
+        });
+
+        let response = lsp
+            .call("someMethod/foo".to_string(), jrpc_types::Params::None)
+            .await;
+        let id = match &response {
+            jsonrpc_core::Output::Success(s) => match s.id {
+                jrpc_types::Id::Num(n) => n,
+                _ => panic!("Unexpected ID"),
+            },
+            _ => panic!("Expected success"),
+        };
+
+        let expected_response = jrpc_types::Output::Success(jrpc_types::Success {
+            jsonrpc: Some(jrpc_types::Version::V2),
+            id: jrpc_types::Id::Num(id),
+            result: jrpc_types::Value::String(String::from("success")),
+        });
+        assert_eq!(response, expected_response);
+        server_task.await.unwrap();
     }
 }
