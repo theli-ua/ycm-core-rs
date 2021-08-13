@@ -3,6 +3,7 @@ use std::collections::HashMap;
 use regex::RegexSet;
 
 pub mod filename;
+pub mod lsp;
 pub mod trigger;
 pub mod ultisnips;
 
