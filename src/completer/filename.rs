@@ -1,6 +1,9 @@
 use log::debug;
 use regex::Regex;
-use std::{collections::HashSet, path::PathBuf};
+use std::{
+    collections::HashSet,
+    path::{Path, PathBuf},
+};
 
 use crate::{
     core::query::filter_and_sort_generic_candidates,
@@ -74,7 +77,7 @@ impl FilenameCompleter {
 }
 
 impl FilenameCompleter {
-    fn working_directory(&self, working_dir: &Option<PathBuf>, filepath: &PathBuf) -> PathBuf {
+    fn working_directory(&self, working_dir: &Option<PathBuf>, filepath: &Path) -> PathBuf {
         if self.use_working_dir {
             working_dir.clone()
         } else {
