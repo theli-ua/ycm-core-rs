@@ -102,7 +102,7 @@ impl ServerState {
     }
 
     pub fn defined_subcommands(&self, _request: SimpleRequest) -> Vec<String> {
-        unimplemented!()
+        vec![]
     }
 
     pub fn semantic_completer_available(&self, _request: SimpleRequest) -> bool {
@@ -115,7 +115,7 @@ impl ServerState {
 
     pub fn event_notification(&self, request: EventNotification) -> Vec<DiagnosticData> {
         self.generic_completers.lock().unwrap().on_event(&request);
-        Vec::new()
+        vec![]
     }
 
     pub async fn get_messages(&self, _request: SimpleRequest) -> MessagePollResponse {

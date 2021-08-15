@@ -10,27 +10,33 @@ use tokio::sync::{mpsc, oneshot};
 
 use jsonrpc_core::types as jrpc_types;
 
-pub struct LspTransport<W: AsyncWrite> {
-    stream: W,
+pub struct LspTransport {
     response_channels: Arc<Slab<oneshot::Sender<jrpc_types::Output>>>,
     server_requests: mpsc::Receiver<jrpc_types::Call>,
+    client_requests: mpsc::Sender<jrpc_types::Call>,
 }
 
-impl<W: AsyncWrite + Unpin + Send> LspTransport<W> {
-    pub fn new<R: AsyncRead + Unpin + Send + 'static>(mut stream_in: R, stream_out: W) -> Self {
+impl LspTransport {
+    pub fn new<R, W>(mut stream_in: R, mut stream_out: W) -> Self
+    where
+        R: AsyncRead + Unpin + Send + 'static,
+        W: AsyncWrite + Unpin + Send + 'static,
+    {
         // Notifications channel
-        let (sender, receiver) = mpsc::channel(1024);
+        let (server_requests_sender, server_requests_receiver) = mpsc::channel(1024);
+        let (client_requests_sender, mut client_requests_receiver) = mpsc::channel(1024);
 
         let response_channels = Arc::default();
 
         let result = Self {
-            server_requests: receiver,
+            server_requests: server_requests_receiver,
+            client_requests: client_requests_sender,
             response_channels,
-            stream: stream_out,
         };
 
         let response_channels = result.response_channels.clone();
 
+        // Spawn reader
         tokio::spawn(async move {
             let mut buf = BytesMut::with_capacity(16535);
             #[allow(clippy::mutable_key_type)]
@@ -115,7 +121,7 @@ impl<W: AsyncWrite + Unpin + Send> LspTransport<W> {
                         match call {
                             Ok(call) => {
                                 debug!("Sending call from server from bg task: {:?}", call);
-                                sender.send(call).await.unwrap()
+                                server_requests_sender.send(call).await.unwrap()
                             }
                             Err(_) => {
                                 error!(
@@ -129,14 +135,21 @@ impl<W: AsyncWrite + Unpin + Send> LspTransport<W> {
             }
         });
 
+        // Spawn writer
+        tokio::spawn(async move {
+            while let Some(request) = client_requests_receiver.recv().await {
+                let bytes = serde_json::to_vec(&request).unwrap();
+                let headers = format!("Content-Length: {}\r\n\r\n", bytes.len());
+                stream_out.write_all(headers.as_bytes()).await.unwrap();
+                stream_out.write_all(&bytes).await.unwrap();
+            }
+        });
+
         result
     }
 
-    async fn write_request(&mut self, request: &jsonrpc_core::types::Call) {
-        let bytes = serde_json::to_vec(request).unwrap();
-        let headers = format!("Content-Length: {}\r\n\r\n", bytes.len());
-        self.stream.write_all(headers.as_bytes()).await.unwrap();
-        self.stream.write_all(&bytes).await.unwrap();
+    async fn write_request(&self, request: jsonrpc_core::types::Call) {
+        self.client_requests.send(request).await.unwrap()
     }
 
     /// Read next notification
@@ -145,7 +158,7 @@ impl<W: AsyncWrite + Unpin + Send> LspTransport<W> {
     }
 
     /// Send request returning awaitable result
-    pub async fn call(&mut self, method: String, params: jrpc_types::Params) -> jrpc_types::Output {
+    pub async fn call(&self, method: String, params: jrpc_types::Params) -> jrpc_types::Output {
         let (sender, receiver) = oneshot::channel();
         let id = self.response_channels.insert(sender).unwrap();
 
@@ -156,19 +169,19 @@ impl<W: AsyncWrite + Unpin + Send> LspTransport<W> {
             id: jrpc_types::Id::Num(id as u64),
         });
 
-        self.write_request(&request).await;
+        self.write_request(request).await;
         receiver.await.unwrap()
     }
 
     /// Notify server
-    pub async fn notify(&mut self, method: String, params: jrpc_types::Params) {
+    pub async fn notify(&self, method: String, params: jrpc_types::Params) {
         let request = jrpc_types::Call::Notification(jrpc_types::Notification {
             jsonrpc: Some(jrpc_types::Version::V2),
             method,
             params,
         });
 
-        self.write_request(&request).await;
+        self.write_request(request).await;
     }
 }
 
@@ -222,7 +235,7 @@ mod tests {
     async fn test_request_response() {
         let (client, mut server) = tokio::io::duplex(4096);
         let (client_r, client_w) = tokio::io::split(client);
-        let mut lsp = LspTransport::new(client_r, client_w);
+        let lsp = LspTransport::new(client_r, client_w);
 
         let server_task = tokio::spawn(async move {
             // We're not gonna cheat here and not do line reading
