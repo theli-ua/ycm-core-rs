@@ -18,6 +18,7 @@ pub struct Options {
     pub max_diagnostics_to_display: usize,
     pub filepath_blacklist: HashMap<String, String>,
     pub filepath_completion_use_working_dir: u8,
+    pub rust_toolchain_root: String,
 }
 
 pub struct ServerState {

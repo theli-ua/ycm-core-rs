@@ -10,6 +10,7 @@ use tokio::sync::{mpsc, oneshot};
 
 use jsonrpc_core::types as jrpc_types;
 
+/// Object responsible for multiplexing requests, dispatching responses and notifications
 pub struct LspTransport {
     response_channels: Arc<Slab<oneshot::Sender<jrpc_types::Output>>>,
     server_requests: mpsc::Receiver<jrpc_types::Call>,
@@ -17,6 +18,7 @@ pub struct LspTransport {
 }
 
 impl LspTransport {
+    /// Create a new LSP Transport from read/write streams
     pub fn new<R, W>(mut stream_in: R, mut stream_out: W) -> Self
     where
         R: AsyncRead + Unpin + Send + 'static,
@@ -38,6 +40,9 @@ impl LspTransport {
 
         // Spawn reader
         tokio::spawn(async move {
+            // NOTE: we could use BufReader which implements AsyncBufRead and AsyncBufReadExt that
+            // has read_line. However it seems like it'll be more memcopy and I already did this
+            // one
             let mut buf = BytesMut::with_capacity(16535);
             #[allow(clippy::mutable_key_type)]
             let mut headers: HashMap<Bytes, Bytes> = HashMap::default();
@@ -238,7 +243,7 @@ mod tests {
         let lsp = LspTransport::new(client_r, client_w);
 
         let server_task = tokio::spawn(async move {
-            // We're not gonna cheat here and not do line reading
+            // We're gonna cheat here and not do line reading
             let length_re = Regex::new("Content-Length:\\s*([0-9]+)").unwrap();
 
             let mut buf = BytesMut::with_capacity(4096);

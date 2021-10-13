@@ -16,6 +16,7 @@ path = "src/main.rs"
 debug = true
 
 [dependencies]
+anyhow = "1"
 base64 = "0.13"
 bytes = "1"
 dirs = "3.0.2"
