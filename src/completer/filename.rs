@@ -91,7 +91,7 @@ impl FilenameCompleter {
     }
 
     fn get_dir_head_regex(&self, directory: &str) -> Regex {
-        let paths = utils::list_dir(directory);
+        let paths = utils::list_dir(directory).map(|p| regex::escape(&p));
         #[allow(unstable_name_collisions)]
         let patterns = std::iter::once(HEAD_PATTERN.to_string())
             .chain(paths)
